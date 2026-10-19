@@ -4,10 +4,11 @@
 // place to tune timing. When the user asks for reduced motion every preset
 // runs instantly, matching what app.css does for CSS transitions.
 //
-// Use a preset instead of inline numbers: `in:fly={rise(2)}`, not
-// `in:fly={{ y: 14, duration: 320, delay: 80 }}`.
+// The motion is mechanical: one curve, short rises, no overshoot, and nothing
+// leaves slowly. Use a preset instead of inline numbers: `in:fly={rise}`, not
+// `in:fly={{ y: 8, duration: 160 }}`.
 
-import { backOut, cubicOut } from "svelte/easing";
+import { cubicOut } from "svelte/easing";
 
 export type Speed = "instant" | "fast" | "base" | "slow";
 
@@ -30,32 +31,29 @@ export function ms(speed: Speed): number {
   return v;
 }
 
-/** Delay between items that arrive together, such as a page's cards. */
-const STAGGER = 40;
-
-/** A card or section rising into place; `i` staggers it after its siblings. */
-export const rise = (i = 0) => ({ y: 14, duration: ms("slow"), delay: reduced?.matches ? 0 : i * STAGGER, easing: cubicOut });
-
 // The presets below are objects with getters, so the duration is read each
 // time a transition starts rather than once when this module loads.
 
-/** A small inline hint dropping in beside a heading. */
-export const hint = { y: -4, get duration() { return ms("base"); } };
+/** A section or row arriving: rises 8px. */
+export const rise = { y: 8, easing: cubicOut, get duration() { return ms("base"); } };
 
-/** A page appearing, and leaving fast so the next one isn't kept waiting. */
-export const pageIn = { y: 10, get duration() { return ms("base"); }, get delay() { return ms("instant"); } };
+/** A small inline hint dropping in beside a heading. */
+export const hint = { y: -4, easing: cubicOut, get duration() { return ms("fast"); } };
+
+/** A page appearing. It rises in; the old page leaves at once (no exit). */
+export const pageIn = { y: 8, easing: cubicOut, get duration() { return ms("base"); } };
 export const pageOut = { get duration() { return ms("instant"); } };
 
 /** The tray popover opening. */
-export const popover = { y: 10, get duration() { return ms("base"); } };
+export const popover = { y: 8, easing: cubicOut, get duration() { return ms("base"); } };
 
-/** Toasts: rise in, settle out, and reflow the stack. */
-export const toastIn = { y: 16, get duration() { return ms("base"); } };
-export const toastOut = { y: 8, get duration() { return ms("fast"); } };
-export const toastReflow = { get duration() { return ms("base"); } };
+/** Toasts: rise in (160ms), leave quickly (100ms), and reflow the stack. */
+export const toastIn = { y: 8, easing: cubicOut, get duration() { return ms("base"); } };
+export const toastOut = { y: 4, easing: cubicOut, get duration() { return ms("fast"); } };
+export const toastReflow = { get duration() { return ms("fast"); } };
 
-/** Something that pops into place with a little overshoot: dialogs, status badges. */
-export const pop = { start: 0.92, easing: backOut, get duration() { return ms("base"); } };
+/** A dialog arriving over its scrim. */
+export const dialogIn = { y: 8, easing: cubicOut, get duration() { return ms("slow"); } };
 
 /** A scrim or dot fading in and out. */
 export const fadeQuick = { get duration() { return ms("fast"); } };
