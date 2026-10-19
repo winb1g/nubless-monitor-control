@@ -19,7 +19,7 @@
   {disabled}
   onclick={() => !pending && onchange(!checked)}
 >
-  <span class="knob"></span>
+  <span class="knob" class:busy-ring={pending}></span>
 </button>
 
 <style>
@@ -55,23 +55,12 @@
   .on:active:not(:disabled):not(.pending) .knob {
     transform: translateX(13px);
   }
-  /* Waiting on the monitor: a small ring spins inside the knob. */
+  /* Waiting on the monitor: the shared busy ring (app.css) spins inside the knob. */
   .pending {
     cursor: progress;
   }
-  .pending .knob::after {
-    content: "";
-    position: absolute;
-    inset: 5px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    border-top-color: var(--accent);
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+  .knob {
+    --ring-inset: 5px;
   }
   .toggle:disabled {
     opacity: 0.45;

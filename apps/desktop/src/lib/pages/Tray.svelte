@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { popover } from "../motion";
   import { fly } from "svelte/transition";
   import {
     Maximize2, Power, Search, User, Gamepad2, Crosshair, Ruler, Eye, Clapperboard, Image, Sparkles,
@@ -32,7 +33,7 @@
   };
 </script>
 
-<div class="pop" in:fly={{ y: 10, duration: 220 }}>
+<div class="pop" in:fly={popover}>
   <header>
     <img src="/logo.svg" alt="" width="26" height="26" />
     <div class="who">
@@ -80,7 +81,7 @@
             title={c.label}
             onclick={() => !current && pickPictureMode(c.label)}
           >
-            <span class="glyph">
+            <span class="glyph" class:busy-ring={ui.switching === c.label}>
               <Icon size={17} />
               {#if s.features.ai_capable_modes.includes(c.label)}<span class="ai"><Sparkles size={9} /></span>{/if}
             </span>
@@ -228,21 +229,6 @@
     background: var(--grad);
     color: #fff;
     box-shadow: 0 6px 14px -6px rgba(108, 92, 255, 0.7);
-  }
-  .mode.pending .glyph::after {
-    content: "";
-    position: absolute;
-    inset: -4px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    border-top-color: var(--accent);
-    border-right-color: var(--accent-2);
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
   .ai {
     position: absolute;

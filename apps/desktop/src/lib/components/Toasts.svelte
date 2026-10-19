@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { toastIn, toastOut, toastReflow } from "../motion";
   import { fly } from "svelte/transition";
   import { flip } from "svelte/animate";
   import { CircleCheck, Info, TriangleAlert, CircleX } from "@lucide/svelte";
@@ -12,7 +13,7 @@
 <div class="stack" class:compact aria-live="polite">
   {#each ui.toasts as t (t.id)}
     {@const Icon = icons[t.tone]}
-    <div class="toast {t.tone}" animate:flip={{ duration: 220 }} in:fly={{ y: 16, duration: 260 }} out:fly={{ y: 8, duration: 160 }}>
+    <div class="toast {t.tone}" animate:flip={toastReflow} in:fly={toastIn} out:fly={toastOut}>
       <Icon size={17} />
       <span class="text">{t.text}</span>
       {#if t.undo}

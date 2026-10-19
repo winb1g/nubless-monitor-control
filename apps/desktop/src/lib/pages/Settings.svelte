@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rise } from "../motion";
   import { fly } from "svelte/transition";
   import { History, FlaskConical, Palette, MonitorSmartphone, ShieldCheck, Search } from "@lucide/svelte";
   import { ui, resetOriginal, setLabs, useDemo, rescan } from "../store.svelte";
@@ -12,7 +13,7 @@
   <h1>Settings</h1>
   <p class="muted sub">Make nubless yours. Every change here is safe to try.</p>
 
-  <section class="card hero" in:fly={{ y: 12, duration: 300 }}>
+  <section class="card hero" in:fly={rise()}>
     <span class="icon big"><ShieldCheck size={22} /></span>
     <div class="text">
       <h2>Your original settings</h2>
@@ -29,7 +30,7 @@
     </button>
   </section>
 
-  <section class="card row" in:fly={{ y: 12, duration: 300, delay: 50 }}>
+  <section class="card row" in:fly={rise(1)}>
     <span class="icon"><FlaskConical size={18} /></span>
     <div class="text">
       <h2>Labs</h2>
@@ -38,7 +39,7 @@
     <Toggle checked={!!s?.labs} label="Labs" onchange={(v) => setLabs(v)} />
   </section>
 
-  <section class="card row" in:fly={{ y: 12, duration: 300, delay: 100 }}>
+  <section class="card row" in:fly={rise(2)}>
     <span class="icon"><Palette size={18} /></span>
     <div class="text">
       <h2>Appearance</h2>
@@ -51,7 +52,7 @@
     </div>
   </section>
 
-  <section class="card row" in:fly={{ y: 12, duration: 300, delay: 150 }}>
+  <section class="card row" in:fly={rise(3)}>
     <span class="icon"><MonitorSmartphone size={18} /></span>
     <div class="text">
       <h2>Demo monitor</h2>

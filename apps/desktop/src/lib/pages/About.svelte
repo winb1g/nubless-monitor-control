@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rise } from "../motion";
   import { fly } from "svelte/transition";
   import { GitBranch, Bug, ShieldCheck, Heart, Scale } from "@lucide/svelte";
   import { ui } from "../store.svelte";
@@ -16,7 +17,7 @@
 </script>
 
 <div class="page">
-  <section class="hero" in:fly={{ y: 12, duration: 320 }}>
+  <section class="hero" in:fly={rise()}>
     <button class="logo" class:wiggle={taps > 0} onclick={() => taps++} onanimationend={() => (taps = 0)} aria-label="nubless logo">
       <img src="/logo.svg" alt="" width="84" height="84" />
     </button>
@@ -30,18 +31,18 @@
   </section>
 
   <div class="grid">
-    <section class="card" in:fly={{ y: 12, duration: 320, delay: 60 }}>
+    <section class="card" in:fly={rise(1)}>
       <span class="icon"><ShieldCheck size={18} /></span>
       <h2>Our promise</h2>
       <p class="muted">nubless will never brick your display, and you'll never have to reach for the monitor's menu to undo something it did. Values stay in safe ranges, features that don't mix stay apart, and your original settings are always one click away.</p>
       <button class="link" onclick={() => open(`${REPO}/blob/main/SAFETY.md`)}>Read the safety contract</button>
     </section>
-    <section class="card" in:fly={{ y: 12, duration: 320, delay: 120 }}>
+    <section class="card" in:fly={rise(2)}>
       <span class="icon"><Heart size={18} /></span>
       <h2>Thanks</h2>
       <p class="muted">Inspired by OpenLogi, MonitorControl and BetterDisplay. Talks to your monitor with ddc-hi. Built with Tauri and Svelte.</p>
     </section>
-    <section class="card" in:fly={{ y: 12, duration: 320, delay: 180 }}>
+    <section class="card" in:fly={rise(3)}>
       <span class="icon"><Scale size={18} /></span>
       <h2>Open source</h2>
       <p class="muted">MIT licensed. Not affiliated with LG Electronics. LG, LG Switch and UltraGear are trademarks of LG Electronics.</p>

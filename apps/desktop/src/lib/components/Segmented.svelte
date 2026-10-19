@@ -67,7 +67,7 @@
     border-radius: 10px;
     background: var(--panel);
     box-shadow: var(--shadow-sm), 0 0 0 1px var(--line);
-    transition: transform 320ms var(--spring);
+    transition: transform var(--slow) var(--spring);
   }
   button {
     position: relative;

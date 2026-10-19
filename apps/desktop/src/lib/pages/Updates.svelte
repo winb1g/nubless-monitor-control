@@ -1,6 +1,6 @@
 <script lang="ts">
+  import { rise, pop } from "../motion";
   import { fly, scale } from "svelte/transition";
-  import { backOut } from "svelte/easing";
   import { RefreshCw, CircleCheck, Download, Rocket, CloudOff, PackageOpen } from "@lucide/svelte";
   import { ui } from "../store.svelte";
   import { upd, checkForUpdates, installAndRestart } from "../updates.svelte";
@@ -17,9 +17,9 @@
   <h1>Updates</h1>
   <p class="muted sub">You're on version {ui.state?.version ?? "…"}.</p>
 
-  <section class="card status" in:fly={{ y: 12, duration: 300 }}>
+  <section class="card status" in:fly={rise()}>
     {#key upd.phase}
-      <div class="state" in:scale={{ start: 0.9, duration: 320, easing: backOut }}>
+      <div class="state" in:scale={pop}>
         {#if upd.phase === "checking" || upd.phase === "idle"}
           <span class="badge spin"><RefreshCw size={26} /></span>
           <h2>Checking for updates…</h2>
@@ -113,12 +113,7 @@
     box-shadow: none;
   }
   .spin :global(svg) {
-    animation: rot 1s linear infinite;
-  }
-  @keyframes rot {
-    to {
-      transform: rotate(360deg);
-    }
+    animation: spin var(--spin) linear infinite;
   }
   h2 {
     font-size: 19px;

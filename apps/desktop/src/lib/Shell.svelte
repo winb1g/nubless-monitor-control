@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { pageIn, pageOut, fadeQuick } from "./motion";
   import { fly, fade } from "svelte/transition";
   import { MonitorCog, Settings, Download, Info } from "@lucide/svelte";
   import { ui, toast, type Page } from "./store.svelte";
@@ -45,7 +46,7 @@
         <button class:active={ui.page === n.id} onclick={() => (ui.page = n.id)} aria-current={ui.page === n.id ? "page" : undefined}>
           <n.icon size={18} />
           <span>{n.label}</span>
-          {#if n.id === "updates" && ui.updateBadge}<span class="dot" transition:fade></span>{/if}
+          {#if n.id === "updates" && ui.updateBadge}<span class="dot" transition:fade={fadeQuick}></span>{/if}
         </button>
       {/each}
     </nav>
@@ -61,7 +62,7 @@
 
   <main>
     {#key ui.page}
-      <div class="view" in:fly={{ y: 10, duration: 280, delay: 60 }} out:fade={{ duration: 60 }}>
+      <div class="view" in:fly={pageIn} out:fade={pageOut}>
         {#if ui.page === "displays"}<Displays />
         {:else if ui.page === "settings"}<SettingsPage />
         {:else if ui.page === "updates"}<Updates />
@@ -109,7 +110,7 @@
     background: var(--panel);
     box-shadow: var(--shadow-sm), 0 0 0 1px var(--line);
     transform: translateY(calc(var(--i) * 46px));
-    transition: transform 380ms var(--spring);
+    transition: transform var(--slow) var(--spring);
   }
   nav button {
     position: relative;

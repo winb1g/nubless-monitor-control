@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rise, hint } from "../motion";
   import { fly } from "svelte/transition";
   import {
     Sparkles, WandSparkles, AppWindow, PictureInPicture2, RefreshCw, TriangleAlert, FlaskConical,
@@ -65,7 +66,7 @@
       {#each [0, 1] as _}<div class="mon skeleton" style="height:178px"></div>{/each}
     {:else}
       {#each s.monitors as m (m.id)}
-        <button class="mon" class:selected={m.selected} class:unsupported={!m.supported} in:fly={{ y: 10, duration: 300 }}>
+        <button class="mon" class:selected={m.selected} class:unsupported={!m.supported} in:fly={rise()}>
           <MonitorArt size={132} dim={!m.supported} />
           <span class="name">{m.name}</span>
           <span class="tag" class:ok={m.supported}>{m.demo ? "Simulated" : m.supported ? "Supported" : "Not supported yet"}</span>
@@ -80,7 +81,7 @@
   </div>
 
   {#if s?.lg_switch_running}
-    <div class="banner warn" in:fly={{ y: -6 }}>
+    <div class="banner warn" in:fly={hint}>
       <TriangleAlert size={18} />
       <div><b>LG Switch is running.</b> It talks to your monitor too, so a change can occasionally need a second try. Quit LG Switch for the smoothest experience.</div>
     </div>
@@ -93,7 +94,7 @@
   {/if}
 
   {#if s && s.phase === "empty"}
-    <div class="empty card" in:fly={{ y: 12, duration: 320 }}>
+    <div class="empty card" in:fly={rise()}>
       <div class="float"><MonitorArt size={170} /></div>
       <h2>Let's find your {s.model}</h2>
       <p class="muted">nubless talks to your monitor over the cable you already use. If it doesn't show up:</p>
@@ -116,7 +117,7 @@
   {:else}
     <div class="grid">
       <!-- Smart features: the interlocks live here -->
-      <section class="card" in:fly={{ y: 14, duration: 320 }}>
+      <section class="card" in:fly={rise()}>
         <div class="title"><h2>Smart features</h2><span class="hint">Only one can be on at a time</span></div>
         {#each smart as f}
           {@const pending = ui.pendingFeature?.id === f.id}
@@ -144,14 +145,14 @@
       <!-- Picture mode -->
       {#if byId["picture-mode"]}
         {@const pm = byId["picture-mode"]}
-        <section class="card" in:fly={{ y: 14, duration: 320, delay: 40 }}>
+        <section class="card" in:fly={rise(1)}>
           <div class="title"><h2>Picture mode</h2>{#if !s.demo && !pm.enabled}<Lock control={pm} />{:else}<span class="hint"><Sparkles size={12} /> works with AI features</span>{/if}</div>
           <div class="tiles">
             {#each pm.choices as c (c.raw)}
               {@const Icon = tileIcons[c.label] ?? Image}
               {@const current = ui.switching ? ui.switching === c.label : (s.features.picture_mode ?? null) === c.label || pm.value === c.raw}
               <button class="tile" class:active={current} class:pending={ui.switching === c.label} disabled={!s.demo && !pm.enabled} onclick={() => !current && pickPictureMode(c.label)}>
-                <span class="ticon"><Icon size={20} /></span>
+                <span class="ticon" class:busy-ring={ui.switching === c.label}><Icon size={20} /></span>
                 <span>{c.label}</span>
                 {#if s.features.ai_capable_modes.includes(c.label)}<span class="ai" title="Works with AI Scene Optimization"><Sparkles size={11} /></span>{/if}
               </button>
@@ -160,23 +161,23 @@
         </section>
       {/if}
 
-      <section class="card" class:loading in:fly={{ y: 14, duration: 320, delay: 80 }}>
-        <div class="title"><h2>Picture</h2>{#if loading}<span class="hint loading-hint" in:fly={{ y: -4, duration: 200 }}>Loading {ui.switching ?? s.features.picture_mode ?? "new"} settings…</span>{/if}</div>
+      <section class="card" class:loading in:fly={rise(2)}>
+        <div class="title"><h2>Picture</h2>{#if loading}<span class="hint loading-hint" in:fly={hint}>Loading {ui.switching ?? s.features.picture_mode ?? "new"} settings…</span>{/if}</div>
         {#each group("picture").filter((c) => c.kind === "range") as c (c.id)}<Slider control={c} />{/each}
         {#each group("picture").filter((c) => c.kind !== "range") as c (c.id)}
           <div class="inforow"><span>{c.label}</span>{#if c.enabled}<span>{c.display}</span>{:else}<Lock control={c} />{/if}</div>
         {/each}
       </section>
 
-      <section class="card" class:loading in:fly={{ y: 14, duration: 320, delay: 120 }}>
-        <div class="title"><h2>Gaming</h2>{#if loading}<span class="hint loading-hint" in:fly={{ y: -4, duration: 200 }}>Loading {ui.switching ?? s.features.picture_mode ?? "new"} settings…</span>{/if}</div>
+      <section class="card" class:loading in:fly={rise(3)}>
+        <div class="title"><h2>Gaming</h2>{#if loading}<span class="hint loading-hint" in:fly={hint}>Loading {ui.switching ?? s.features.picture_mode ?? "new"} settings…</span>{/if}</div>
         {#each group("game").filter((c) => c.kind === "choice") as c (c.id)}<Segmented control={c} />{/each}
         {#each group("game").filter((c) => c.kind !== "choice") as c (c.id)}
           <div class="inforow"><span>{c.label}</span>{#if c.enabled}<span>{c.display}</span>{:else}<Lock control={c} />{/if}</div>
         {/each}
       </section>
 
-      <section class="card" class:loading in:fly={{ y: 14, duration: 320, delay: 160 }}>
+      <section class="card" class:loading in:fly={rise(4)}>
         <div class="title"><h2>Sound</h2></div>
         {#if byId["volume"]}<Slider control={byId["volume"]} />{/if}
         {#if aiSound}
@@ -197,7 +198,7 @@
         {/if}
       </section>
 
-      <section class="card" in:fly={{ y: 14, duration: 320, delay: 200 }}>
+      <section class="card" in:fly={rise(5)}>
         <div class="title"><h2>About this monitor</h2></div>
         {#each group("info") as c (c.id)}
           <div class="inforow">
@@ -208,7 +209,7 @@
       </section>
 
       {#if !s.labs && s.controls.some((c) => c.unlock === "labs")}
-        <section class="card labs" in:fly={{ y: 14, duration: 320, delay: 240 }}>
+        <section class="card labs" in:fly={rise(6)}>
           <span class="ficon"><FlaskConical size={18} /></span>
           <div class="ftext">
             <b>{s.controls.filter((c) => c.unlock === "labs").length} more controls are almost ready</b>
@@ -320,12 +321,7 @@
     color: var(--accent);
   }
   .spin.on :global(svg) {
-    animation: rot 0.9s linear infinite;
-  }
-  @keyframes rot {
-    to {
-      transform: rotate(360deg);
-    }
+    animation: spin var(--spin) linear infinite;
   }
 
   .banner {
@@ -464,24 +460,10 @@
     color: var(--accent);
     opacity: 0.8;
   }
-  /* Progress ring around the tile icon (a square box, so it spins cleanly). */
+  /* The busy ring (app.css) goes around the tile icon while switching. */
   .ticon {
     position: relative;
-  }
-  .tile.pending .ticon::after {
-    content: "";
-    position: absolute;
-    inset: -5px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    border-top-color: var(--accent);
-    border-right-color: var(--accent-2);
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+    --ring-inset: -5px;
   }
   .card.loading {
     position: relative;

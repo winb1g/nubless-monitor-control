@@ -1,6 +1,6 @@
 <script lang="ts">
+  import { pop, fadeQuick } from "../motion";
   import { fade, scale } from "svelte/transition";
-  import { backOut } from "svelte/easing";
   import { ui } from "../store.svelte";
 
   function onkeydown(e: KeyboardEvent) {
@@ -14,14 +14,14 @@
 
 {#if ui.dialog}
   {@const d = ui.dialog}
-  <div class="scrim" transition:fade={{ duration: 160 }} onclick={() => d.resolve(false)} role="presentation">
+  <div class="scrim" transition:fade={fadeQuick} onclick={() => d.resolve(false)} role="presentation">
     <div
       class="dialog"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="dlg-title"
       tabindex="-1"
-      transition:scale={{ start: 0.92, duration: 260, easing: backOut }}
+      transition:scale={pop}
       onclick={(e) => e.stopPropagation()}
       onkeydown={() => {}}
     >
