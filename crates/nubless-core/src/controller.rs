@@ -64,6 +64,8 @@ pub enum ControlError {
     },
     #[error("nothing to undo")]
     NothingToUndo,
+    #[error("these settings belong to {saved}. Switch your monitor to {saved} first (it's on {current} now), then try again.")]
+    WrongMode { saved: String, current: String },
 }
 
 /// Result of a successful write.
@@ -83,6 +85,10 @@ pub struct Applied {
 pub struct Snapshot {
     pub model: String,
     pub values: BTreeMap<String, u16>,
+    /// Raw value of the profile's mode control (picture mode) when the
+    /// snapshot was taken. The values only belong to that mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<u16>,
 }
 
 const CAPS_ATTEMPTS: u32 = 6;
@@ -307,6 +313,7 @@ impl<T: Transport> Controller<T> {
         Snapshot {
             model: self.profile.model.to_string(),
             values,
+            mode: self.current_mode(),
         }
     }
 
@@ -314,6 +321,17 @@ impl<T: Transport> Controller<T> {
     /// monitor itself reported is allowed back), so a baseline can always be
     /// restored even after the policy changed.
     pub fn restore(&mut self, snap: &Snapshot) -> Vec<(String, Result<(), ControlError>)> {
+        if let (Some(saved), Some(id)) = (snap.mode, self.profile.mode_control) {
+            let current = self.current_mode();
+            if current != Some(saved) {
+                let name = |v: Option<u16>| self.mode_name(v);
+                let err = ControlError::WrongMode {
+                    saved: name(Some(saved)),
+                    current: name(current),
+                };
+                return vec![(id.to_string(), Err(err))];
+            }
+        }
         let mut results = Vec::new();
         for (id, &value) in &snap.values {
             let result = (|| {
@@ -333,6 +351,26 @@ impl<T: Transport> Controller<T> {
             results.push((id.clone(), result));
         }
         results
+    }
+
+    /// Raw value of the profile's mode control, if it has one and it answers.
+    pub fn current_mode(&mut self) -> Option<u16> {
+        let id = self.profile.mode_control?;
+        self.read(id).ok().map(|r| r.current)
+    }
+
+    /// Human name of a mode value ("Gamer 1"), for messages.
+    pub fn mode_name(&self, raw: Option<u16>) -> String {
+        let label = self
+            .profile
+            .mode_control
+            .and_then(|id| self.profile.control(id))
+            .and_then(|c| raw.and_then(|r| c.choice_label(r)));
+        match (label, raw) {
+            (Some(l), _) => l.to_string(),
+            (None, Some(r)) => format!("the picture mode you were using (value {r})"),
+            (None, None) => "an unknown picture mode".to_string(),
+        }
     }
 
     fn apply(

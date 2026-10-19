@@ -76,7 +76,7 @@ export function previewBackend() {
       picture_mode: picture,
       ai_capable_modes: AI_MODES,
     },
-    baseline: { saved: true, values: Object.keys(original).length, just_saved: false, error: null },
+    baseline: { saved: true, values: Object.keys(original).length, just_saved: false, error: null, saved_in: "Personalized Picture" },
     labs,
     lg_switch_running: false,
     error: null,

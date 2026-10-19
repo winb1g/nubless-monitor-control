@@ -87,6 +87,9 @@ enum ProbeAction {
     Watch {
         #[arg(long, default_value_t = 180)]
         seconds: u64,
+        /// Only watch these codes (hex, comma-separated), e.g. 0x15. Much faster.
+        #[arg(long, value_delimiter = ',')]
+        codes: Vec<String>,
     },
 }
 
@@ -187,8 +190,15 @@ fn run(cli: Cli) -> AnyResult {
         Command::Probe { action } => match action {
             ProbeAction::Save { file } => Ok(probe::save(&mut ctl, &file)?),
             ProbeAction::Diff { file } => probe::diff(&mut ctl, &file),
-            ProbeAction::Watch { seconds } => {
-                probe::watch(&mut ctl, seconds);
+            ProbeAction::Watch { seconds, codes } => {
+                let only = codes
+                    .iter()
+                    .map(|c| {
+                        u8::from_str_radix(c.trim_start_matches("0x").trim_start_matches("0X"), 16)
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|_| "codes must be hex, like 0x15")?;
+                probe::watch(&mut ctl, seconds, &only);
                 Ok(())
             }
         },

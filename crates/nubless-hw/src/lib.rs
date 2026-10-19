@@ -43,9 +43,9 @@ pub fn enumerate(profile: &Profile) -> Vec<HwDisplay> {
         .enumerate()
         .map(|(index, mut display)| {
             // The capabilities read is the flakiest DDC/CI message; give it a few tries.
-            let caps = (0..3).find_map(|attempt| {
+            let caps = (0..5).find_map(|attempt| {
                 if attempt > 0 {
-                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    std::thread::sleep(std::time::Duration::from_millis(300 * attempt as u64));
                 }
                 let raw = display.handle.capabilities_string().ok()?;
                 Capabilities::parse(&String::from_utf8_lossy(&raw)).ok()

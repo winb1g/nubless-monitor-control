@@ -89,9 +89,14 @@ pub fn diff<T: Transport>(
 }
 
 /// Poll and print every change with a timestamp, for `seconds`.
-pub fn watch<T: Transport>(ctl: &mut Controller<T>, seconds: u64) {
+pub fn watch<T: Transport>(ctl: &mut Controller<T>, seconds: u64, only: &[u8]) {
     let start = Instant::now();
-    let mut last = read_all(ctl, &codes(ctl));
+    let wanted = if only.is_empty() {
+        codes(ctl)
+    } else {
+        only.to_vec()
+    };
+    let mut last = read_all(ctl, &wanted);
     // Only poll codes that answered; a silent code costs three retries every pass.
     let list: Vec<u8> = last.keys().copied().collect();
     println!(

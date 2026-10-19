@@ -291,6 +291,7 @@ pub const PROFILE: Profile = Profile {
         ],
     },
     controls: CONTROLS,
+    mode_control: Some("picture-mode"),
 };
 
 #[cfg(test)]

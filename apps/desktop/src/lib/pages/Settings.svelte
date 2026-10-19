@@ -17,7 +17,7 @@
     <div class="text">
       <h2>Your original settings</h2>
       {#if s?.baseline.saved}
-        <p class="muted">Saved the first time nubless connected, before it changed anything ({s.baseline.values} settings). Reset puts them back.</p>
+        <p class="muted">Saved the first time nubless connected, before it changed anything ({s.baseline.values} settings{s.baseline.saved_in ? ` in ${s.baseline.saved_in}` : ""}). Reset puts them back{s.baseline.saved_in ? `; each picture mode keeps its own settings, so reset works while your monitor is in ${s.baseline.saved_in}` : ""}.</p>
       {:else if s?.baseline.error}
         <p class="muted">Couldn't be saved: {s.baseline.error}. nubless won't change anything until this works.</p>
       {:else}

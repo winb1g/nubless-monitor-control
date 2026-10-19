@@ -205,6 +205,9 @@ pub struct Profile {
     pub model: &'static str,
     pub identity: Identity,
     pub controls: &'static [Control],
+    /// Control whose value scopes the others: each picture mode keeps its own
+    /// brightness, contrast and so on, so a snapshot only applies in its mode.
+    pub mode_control: Option<&'static str>,
 }
 
 impl Profile {

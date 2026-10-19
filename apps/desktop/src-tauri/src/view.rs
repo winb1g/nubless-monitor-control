@@ -58,6 +58,8 @@ pub struct BaselineView {
     pub values: usize,
     /// Saved during this connection (first run): the UI celebrates once.
     pub just_saved: bool,
+    /// Picture mode the originals belong to ("Personalized Picture").
+    pub saved_in: Option<String>,
     pub error: Option<String>,
 }
 

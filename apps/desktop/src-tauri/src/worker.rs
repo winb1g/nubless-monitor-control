@@ -606,6 +606,7 @@ impl Worker {
                     values: 0,
                     just_saved: false,
                     error: None,
+                    saved_in: None,
                 },
                 labs: self.labs,
                 lg_switch_running,
@@ -623,6 +624,11 @@ impl Worker {
             values: conn.baseline.as_ref().map_or(0, |b| b.values.len()),
             just_saved: std::mem::take(&mut conn.just_saved),
             error: conn.baseline_error.clone(),
+            saved_in: conn
+                .baseline
+                .as_ref()
+                .and_then(|b| b.mode)
+                .map(|m| conn.ctl.mode_name(Some(m))),
         };
         AppState {
             phase: "connected",

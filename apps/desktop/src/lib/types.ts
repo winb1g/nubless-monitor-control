@@ -49,7 +49,7 @@ export interface AppState {
     picture_mode: string | null;
     ai_capable_modes: string[];
   };
-  baseline: { saved: boolean; values: number; just_saved: boolean; error: string | null };
+  baseline: { saved: boolean; values: number; just_saved: boolean; error: string | null; saved_in: string | null };
   labs: boolean;
   lg_switch_running: boolean;
   error: string | null;

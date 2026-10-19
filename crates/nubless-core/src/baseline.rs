@@ -24,6 +24,8 @@ pub fn ensure<T: Transport>(path: &Path, ctl: &mut Controller<T>) -> io::Result<
             let changed = !current.values.is_empty();
             (current, changed)
         }
+        // Values belong to a picture mode: only fill gaps while in the same mode.
+        Some(base) if base.mode != current.mode => (base, false),
         Some(mut base) => {
             let mut changed = false;
             for (id, v) in current.values {
@@ -143,5 +145,49 @@ mod tests {
         ctl.write("contrast", 60).unwrap();
         assert!(ctl.restore(&base).iter().all(|(_, r)| r.is_ok()));
         assert_eq!(ctl.read("contrast").unwrap().current, 5);
+    }
+    #[test]
+    fn originals_only_apply_in_the_picture_mode_they_were_saved_in() {
+        let path = temp_path("mode");
+        let mut ctl = Controller::new(
+            MockMonitor::gm950b(),
+            &PROFILE,
+            WritePolicy::Safe,
+            Timing::instant(),
+            Journal::in_memory(),
+        )
+        .unwrap();
+        let (base, _) = ensure(&path, &mut ctl).unwrap();
+        assert_eq!(base.mode, Some(65), "saved in Personalized Picture");
+
+        // Later the monitor is in Gamer 1, where brightness is its own setting.
+        let mut m = MockMonitor::gm950b();
+        m.values.get_mut(&0x15).unwrap().current = 45;
+        m.values.get_mut(&0x10).unwrap().current = 95;
+        m.values.remove(&0x62);
+        let mut ctl = Controller::new(
+            m,
+            &PROFILE,
+            WritePolicy::Safe,
+            Timing::instant(),
+            Journal::in_memory(),
+        )
+        .unwrap();
+        let results = ctl.restore(&base);
+        assert_eq!(results.len(), 1);
+        let err = results[0].1.as_ref().unwrap_err().to_string();
+        assert!(
+            err.contains("Personalized Picture") && err.contains("Gamer 1"),
+            "{err}"
+        );
+        assert_eq!(
+            ctl.read("brightness").unwrap().current,
+            95,
+            "nothing was written"
+        );
+
+        let (again, saved) = ensure(&path, &mut ctl).unwrap();
+        assert!(!saved, "no back-filling from another picture mode");
+        assert_eq!(again.values["brightness"], 80);
     }
 }
