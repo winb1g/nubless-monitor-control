@@ -1,6 +1,8 @@
+/* Design tokens. Components use these instead of raw values; see
+   docs/design-system.md for what each one is for. Colors and shadows that
+   change with the theme are redefined in the two dark blocks below. */
 :root {
-  --font: "Inter Variable", "Segoe UI Variable Text", "SF Pro Text", system-ui, sans-serif;
-
+  /* ---- Color -------------------------------------------------------------- */
   --bg: #f3f4fa;
   --panel: #ffffff;
   --panel-2: #f7f8fc;
@@ -10,11 +12,15 @@
   --text-2: #565d71;
   --text-3: #8b91a3;
 
+  --brand-1: #7b61ff;
+  --brand-2: #22c3ee;
+  --grad: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
+  --grad-x: linear-gradient(90deg, var(--brand-1), var(--brand-2)); /* fills that grow sideways */
   --accent: #6c5cff;
-  --accent-2: #22c3ee;
-  --accent-ink: #4a3bd6;
+  --accent-2: var(--brand-2);
+  --accent-ink: #4a3bd6; /* accent text on a light surface */
   --accent-soft: rgba(108, 92, 255, 0.12);
-  --grad: linear-gradient(135deg, #7b61ff 0%, #22c3ee 100%);
+  --on-accent: #fff; /* text and icons on --grad or --accent */
   --mint: #12b886;
   --mint-soft: rgba(18, 184, 134, 0.14);
   --sun: #f59f00;
@@ -22,21 +28,74 @@
   --coral: #f0563f;
   --coral-soft: rgba(240, 86, 63, 0.12);
 
+  /* The dark surface toasts sit on, the same in both themes. */
+  --inverse: #1b1e29;
+  --inverse-text: #f1f2f7;
+  --inverse-mint: #3ddc97;
+  --inverse-accent: #9d90ff;
+  --inverse-sun: #ffc04d;
+  --inverse-coral: #ff7a66;
+  --inverse-fill: rgba(255, 255, 255, 0.12); /* buttons on the inverse surface */
+  --inverse-fill-hover: rgba(255, 255, 255, 0.22);
+
+  --knob: #fff; /* toggle and slider thumbs */
+  --scrim: rgba(10, 12, 20, 0.38);
+
+  /* ---- Shadow ------------------------------------------------------------- */
   --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 10px 30px -12px rgba(16, 24, 40, 0.12);
   --shadow-lg: 0 24px 60px -20px rgba(16, 24, 40, 0.35);
+  --shadow-popover: 0 18px 40px -16px rgba(16, 24, 40, 0.45);
+  --shadow-knob: 0 2px 6px rgba(20, 24, 40, 0.25);
+  /* Colored glow under things filled with --grad. --glow-rgb is the color, so
+     one-offs like the About logo's drop-shadow can use it too. */
+  --glow-rgb: 108 92 255;
+  --glow-sm: 0 6px 14px -6px rgb(var(--glow-rgb) / 0.7);
+  --glow: 0 6px 18px -6px rgb(var(--glow-rgb) / 0.6);
+  --glow-lg: 0 10px 24px -10px rgb(var(--glow-rgb) / 0.7);
 
-  --r-sm: 10px;
-  --r: 16px;
-  --r-lg: 22px;
+  /* ---- Radius ------------------------------------------------------------- */
+  --r-xs: 8px; /* value chips, focus rings */
+  --r-sm: 10px; /* small buttons, segment thumbs, skeletons */
+  --r-md: 12px; /* buttons, nav items, list rows */
+  --r-lg: 14px; /* popovers, toasts, highlighted rows */
+  --r-xl: 16px; /* banners, tiles */
+  --r-2xl: 22px; /* cards, dialogs, the tray */
+  --r-full: 99px; /* pills */
 
-  /* Motion. Use these, never raw values; lib/motion.ts mirrors them for Svelte
-     transitions. --ease settles, --spring overshoots a touch (knobs, pills). */
+  /* ---- Spacing (4px grid) ------------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --page-padding: 34px var(--space-10) 80px;
+
+  /* ---- Type --------------------------------------------------------------- */
+  --font: "Inter Variable", "Segoe UI Variable Text", "SF Pro Text", system-ui, sans-serif;
+  --fs-2xs: 11px; /* tray labels, tiny badges */
+  --fs-xs: 12px; /* hints, tags, chips */
+  --fs-sm: 12.5px; /* secondary text (.small) */
+  --fs-md: 13px; /* compact UI labels */
+  --fs-base: 14px; /* body */
+  --fs-lg: 15px; /* card titles (h2) */
+  --fs-xl: 17px; /* dialog titles, brand */
+  --fs-2xl: 20px; /* feature headings */
+  --fs-3xl: 26px; /* page titles (h1) */
+  --fs-4xl: 32px; /* the About hero */
+
+  /* ---- Motion ------------------------------------------------------------- */
+  /* lib/motion.ts reads the durations from here, so this is the only place to
+     tune them. --ease settles, --spring overshoots a touch (knobs, pills). */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --fast: 140ms; /* hover, press, color */
-  --base: 240ms; /* state changes: toggles, selection */
-  --slow: 380ms; /* larger moves: sliding pills */
+  --instant: 60ms; /* getting out of the way: a page leaving */
+  --fast: 140ms; /* hover, press, color, small fades */
+  --base: 240ms; /* state changes: toggles, selection, things arriving */
+  --slow: 380ms; /* larger moves: sliding pills, cards rising */
   --spin: 0.8s; /* one turn of any busy indicator */
 
   color-scheme: light;
@@ -87,7 +146,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "cv11", "ss01";
@@ -107,11 +166,11 @@ h3 {
   letter-spacing: -0.02em;
 }
 h1 {
-  font-size: 26px;
+  font-size: var(--fs-3xl);
   font-weight: 650;
 }
 h2 {
-  font-size: 15px;
+  font-size: var(--fs-lg);
   font-weight: 600;
 }
 p {
@@ -125,16 +184,26 @@ button {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 8px;
+  border-radius: var(--r-xs);
+}
+
+/* A top-level page in the main window. Each page sets its own max-width. */
+.page {
+  padding: var(--page-padding);
+}
+/* The line under a page title. */
+.subtitle {
+  margin: var(--space-1) 0 var(--space-6);
+  color: var(--text-2);
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   height: 36px;
   padding: 0 14px;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   border: 1px solid var(--line-strong);
   background: var(--panel);
   font-weight: 550;
@@ -148,9 +217,9 @@ button {
 }
 .btn.primary {
   border: none;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--grad);
-  box-shadow: 0 6px 18px -6px rgba(108, 92, 255, 0.6);
+  box-shadow: var(--glow);
 }
 .btn.primary:hover {
   filter: brightness(1.06);
@@ -171,12 +240,14 @@ button {
   transform: none;
 }
 
+/* The card surface. Prefer the Card component; use the class directly only
+   for one-off layouts (an empty state, a single status panel). */
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-2xl);
   box-shadow: var(--shadow);
-  padding: 20px;
+  padding: var(--space-5);
 }
 .muted {
   color: var(--text-2);
@@ -185,11 +256,11 @@ button {
   color: var(--text-3);
 }
 .small {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .skeleton {
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: linear-gradient(90deg, var(--panel-2) 0%, var(--line) 40%, var(--panel-2) 80%);
   background-size: 300% 100%;
   animation: shimmer 1.4s var(--ease) infinite;
@@ -239,7 +310,7 @@ button {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--line-strong);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   border: 3px solid transparent;
   background-clip: padding-box;
 }

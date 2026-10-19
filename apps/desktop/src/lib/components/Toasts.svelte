@@ -39,7 +39,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     z-index: 50;
     pointer-events: none;
   }
@@ -49,7 +49,7 @@
   }
   .compact .toast {
     max-width: 100%;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   .toast {
     pointer-events: auto;
@@ -59,39 +59,39 @@
     align-items: center;
     gap: 10px;
     max-width: 520px;
-    padding: 10px 12px 10px 14px;
-    border-radius: 14px;
-    background: #1b1e29;
-    color: #f1f2f7;
+    padding: 10px var(--space-3) 10px 14px;
+    border-radius: var(--r-lg);
+    background: var(--inverse);
+    color: var(--inverse-text);
     box-shadow: var(--shadow-lg);
     font-weight: 500;
   }
   .success :global(svg) {
-    color: #3ddc97;
+    color: var(--inverse-mint);
   }
   .info :global(svg) {
-    color: #9d90ff;
+    color: var(--inverse-accent);
   }
   .warn :global(svg) {
-    color: #ffc04d;
+    color: var(--inverse-sun);
   }
   .error :global(svg) {
-    color: #ff7a66;
+    color: var(--inverse-coral);
   }
   .text {
     line-height: 1.35;
   }
   .undo {
     border: none;
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
+    background: var(--inverse-fill);
+    color: var(--inverse-text);
     font-weight: 600;
-    padding: 5px 12px;
+    padding: 5px var(--space-3);
     border-radius: 9px;
     transition: background var(--fast);
   }
   .undo:hover {
-    background: rgba(255, 255, 255, 0.22);
+    background: var(--inverse-fill-hover);
   }
   .timer {
     position: absolute;

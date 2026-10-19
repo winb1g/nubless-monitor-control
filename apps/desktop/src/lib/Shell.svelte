@@ -81,7 +81,7 @@
   aside {
     display: flex;
     flex-direction: column;
-    padding: 22px 14px 16px;
+    padding: 22px 14px var(--space-4);
     background: color-mix(in srgb, var(--panel) 55%, var(--bg));
     border-right: 1px solid var(--line);
   }
@@ -91,14 +91,14 @@
     gap: 10px;
     padding: 0 10px 22px;
     font-weight: 700;
-    font-size: 17px;
+    font-size: var(--fs-xl);
     letter-spacing: -0.02em;
   }
   nav {
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-1);
   }
   .pill {
     position: absolute;
@@ -118,7 +118,7 @@
     height: 42px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-3);
     padding: 0 14px;
     border: none;
     background: none;
@@ -153,11 +153,11 @@
     display: flex;
     align-items: center;
     gap: 9px;
-    padding: 10px 12px;
+    padding: 10px var(--space-3);
     border-radius: 13px;
     background: var(--panel);
     box-shadow: 0 0 0 1px var(--line);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--text-3);
   }

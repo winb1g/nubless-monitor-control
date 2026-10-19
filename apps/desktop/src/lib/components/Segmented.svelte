@@ -52,8 +52,8 @@
     position: relative;
     display: grid;
     grid-template-columns: repeat(var(--n), 1fr);
-    padding: 4px;
-    border-radius: 14px;
+    padding: var(--space-1);
+    border-radius: var(--r-lg);
     background: var(--panel-2);
     box-shadow: inset 0 0 0 1px var(--line);
   }
@@ -64,7 +64,7 @@
     left: 4px;
     width: calc((100% - 8px) / var(--n));
     transform: translateX(calc(100% * var(--i)));
-    border-radius: 10px;
+    border-radius: var(--r-sm);
     background: var(--panel);
     box-shadow: var(--shadow-sm), 0 0 0 1px var(--line);
     transition: transform var(--slow) var(--spring);
@@ -75,7 +75,7 @@
     height: 34px;
     border: none;
     background: none;
-    border-radius: 10px;
+    border-radius: var(--r-sm);
     font-weight: 550;
     color: var(--text-2);
     transition: color var(--fast);

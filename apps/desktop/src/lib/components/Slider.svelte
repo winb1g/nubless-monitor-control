@@ -1,5 +1,6 @@
 <script lang="ts">
   import { setControl } from "../store.svelte";
+  import { ms } from "../motion";
   import type { ControlView } from "../types";
   import Lock from "./Lock.svelte";
 
@@ -33,7 +34,7 @@
     const v = Number((e.target as HTMLInputElement).value);
     if ((v === control.min || v === control.max) && v !== local) {
       bump = true;
-      setTimeout(() => (bump = false), 180);
+      setTimeout(() => (bump = false), ms("fast"));
     }
     local = v;
     send(v, false);
@@ -86,7 +87,7 @@
     font-weight: 550;
   }
   .compact .label {
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .val {
     font-variant-numeric: tabular-nums;
@@ -94,7 +95,7 @@
     min-width: 34px;
     text-align: center;
     padding: 2px 8px;
-    border-radius: 8px;
+    border-radius: var(--r-xs);
     background: var(--accent-soft);
     color: var(--accent-ink);
     transition: transform var(--fast) var(--spring);
@@ -107,10 +108,10 @@
     height: 28px;
     display: flex;
     align-items: center;
-    transition: transform 180ms var(--spring);
+    transition: transform var(--fast) var(--spring);
   }
   .track.bump {
-    animation: bump 180ms var(--ease);
+    animation: bump var(--fast) var(--ease);
   }
   @keyframes bump {
     40% {
@@ -123,8 +124,8 @@
     width: 100%;
     height: 8px;
     margin: 0;
-    border-radius: 99px;
-    background: linear-gradient(90deg, #7b61ff, #22c3ee) 0 0 / var(--p) 100% no-repeat, var(--panel-2);
+    border-radius: var(--r-full);
+    background: var(--grad-x) 0 0 / var(--p) 100% no-repeat, var(--panel-2);
     box-shadow: inset 0 0 0 1px var(--line);
     cursor: pointer;
   }
@@ -133,7 +134,7 @@
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--knob);
     border: none;
     box-shadow: 0 2px 8px rgba(20, 24, 40, 0.28), 0 0 0 4px var(--accent-soft);
     transition: transform var(--fast) var(--spring), box-shadow var(--fast);

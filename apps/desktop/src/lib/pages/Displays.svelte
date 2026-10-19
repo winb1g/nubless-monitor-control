@@ -1,5 +1,8 @@
 <script lang="ts">
   import { rise, hint } from "../motion";
+  import Card from "../components/Card.svelte";
+  import IconBadge from "../components/IconBadge.svelte";
+  import Hint from "../components/Hint.svelte";
   import { fly } from "svelte/transition";
   import {
     Sparkles, WandSparkles, AppWindow, PictureInPicture2, RefreshCw, TriangleAlert, FlaskConical,
@@ -73,7 +76,7 @@
         </button>
       {/each}
       <button class="mon add" onclick={rescan} disabled={ui.busy}>
-        <span class="spin" class:on={ui.busy}><RefreshCw size={22} /></span>
+        <IconBadge icon={RefreshCw} size={54} iconSize={22} tone="tint" round spin={ui.busy} />
         <span class="name">{ui.busy ? "Looking…" : "Scan again"}</span>
         <span class="tag">Find connected monitors</span>
       </button>
@@ -117,14 +120,13 @@
   {:else}
     <div class="grid">
       <!-- Smart features: the interlocks live here -->
-      <section class="card" in:fly={rise()}>
-        <div class="title"><h2>Smart features</h2><span class="hint">Only one can be on at a time</span></div>
+      <Card title="Smart features" hint="Only one can be on at a time">
         {#each smart as f}
           {@const pending = ui.pendingFeature?.id === f.id}
           {@const on = pending ? ui.pendingFeature!.on : s.features.state[f.key]}
           {@const lock = featureLock(f.id, s.features.state[f.key])}
           <div class="feature" class:on>
-            <span class="ficon"><f.icon size={18} /></span>
+            <IconBadge icon={f.icon} tone={on ? "brand" : "soft"} />
             <div class="ftext"><b>{f.title}</b><span class="muted small">{pending ? (on ? "Turning on…" : "Turning off…") : f.body}</span></div>
             {#if lock}
               <Lock control={lock} />
@@ -135,50 +137,49 @@
         {/each}
         {#if s.demo}
           <div class="feature demo-row">
-            <span class="ficon"><PictureInPicture2 size={18} /></span>
+            <IconBadge icon={PictureInPicture2} />
             <div class="ftext"><b>PBP/PIP <span class="badge">Demo</span></b><span class="muted small">Pretend PBP/PIP is on, to see the interlocks.</span></div>
             <Toggle checked={s.features.state.pbp} label="Simulate PBP/PIP" onchange={(v) => simulatePbp(v)} />
           </div>
         {/if}
-      </section>
+      </Card>
 
       <!-- Picture mode -->
       {#if byId["picture-mode"]}
         {@const pm = byId["picture-mode"]}
-        <section class="card" in:fly={rise(1)}>
-          <div class="title"><h2>Picture mode</h2>{#if !s.demo && !pm.enabled}<Lock control={pm} />{:else}<span class="hint"><Sparkles size={12} /> works with AI features</span>{/if}</div>
+        <Card title="Picture mode" i={1}>
+          {#snippet aside()}
+            {#if !s.demo && !pm.enabled}<Lock control={pm} />{:else}<Hint><Sparkles size={12} /> works with AI features</Hint>{/if}
+          {/snippet}
           <div class="tiles">
             {#each pm.choices as c (c.raw)}
               {@const Icon = tileIcons[c.label] ?? Image}
               {@const current = ui.switching ? ui.switching === c.label : (s.features.picture_mode ?? null) === c.label || pm.value === c.raw}
               <button class="tile" class:active={current} class:pending={ui.switching === c.label} disabled={!s.demo && !pm.enabled} onclick={() => !current && pickPictureMode(c.label)}>
-                <span class="ticon" class:busy-ring={ui.switching === c.label}><Icon size={20} /></span>
+                <IconBadge icon={Icon} size={40} iconSize={20} tone={current ? "brand" : "raised"} busy={ui.switching === c.label} />
                 <span>{c.label}</span>
                 {#if s.features.ai_capable_modes.includes(c.label)}<span class="ai" title="Works with AI Scene Optimization"><Sparkles size={11} /></span>{/if}
               </button>
             {/each}
           </div>
-        </section>
+        </Card>
       {/if}
 
-      <section class="card" class:loading in:fly={rise(2)}>
-        <div class="title"><h2>Picture</h2>{#if loading}<span class="hint loading-hint" in:fly={hint}>Loading {ui.switching ?? s.features.picture_mode ?? "new"} settings…</span>{/if}</div>
+      <Card title="Picture" i={2} {loading} aside={loadingHint}>
         {#each group("picture").filter((c) => c.kind === "range") as c (c.id)}<Slider control={c} />{/each}
         {#each group("picture").filter((c) => c.kind !== "range") as c (c.id)}
           <div class="inforow"><span>{c.label}</span>{#if c.enabled}<span>{c.display}</span>{:else}<Lock control={c} />{/if}</div>
         {/each}
-      </section>
+      </Card>
 
-      <section class="card" class:loading in:fly={rise(3)}>
-        <div class="title"><h2>Gaming</h2>{#if loading}<span class="hint loading-hint" in:fly={hint}>Loading {ui.switching ?? s.features.picture_mode ?? "new"} settings…</span>{/if}</div>
+      <Card title="Gaming" i={3} {loading} aside={loadingHint}>
         {#each group("game").filter((c) => c.kind === "choice") as c (c.id)}<Segmented control={c} />{/each}
         {#each group("game").filter((c) => c.kind !== "choice") as c (c.id)}
           <div class="inforow"><span>{c.label}</span>{#if c.enabled}<span>{c.display}</span>{:else}<Lock control={c} />{/if}</div>
         {/each}
-      </section>
+      </Card>
 
-      <section class="card" class:loading in:fly={rise(4)}>
-        <div class="title"><h2>Sound</h2></div>
+      <Card title="Sound" i={4} {loading}>
         {#if byId["volume"]}<Slider control={byId["volume"]} />{/if}
         {#if aiSound}
           <div class="inforow">
@@ -196,35 +197,37 @@
             {:else}<Lock control={mute} />{/if}
           </div>
         {/if}
-      </section>
+      </Card>
 
-      <section class="card" in:fly={rise(5)}>
-        <div class="title"><h2>About this monitor</h2></div>
+      <Card title="About this monitor" i={5}>
         {#each group("info") as c (c.id)}
           <div class="inforow">
             <span>{c.label}</span>
             <span class="faint">{c.display ?? "–"}{#if c.reason && c.reason !== "Information from your monitor." && c.kind !== "info"}&nbsp;<Lock control={c} />{/if}</span>
           </div>
         {/each}
-      </section>
+      </Card>
 
       {#if !s.labs && s.controls.some((c) => c.unlock === "labs")}
-        <section class="card labs" in:fly={rise(6)}>
-          <span class="ficon"><FlaskConical size={18} /></span>
+        <Card row tint i={6}>
+          <IconBadge icon={FlaskConical} />
           <div class="ftext">
             <b>{s.controls.filter((c) => c.unlock === "labs").length} more controls are almost ready</b>
             <span class="muted small">They match LG's own names and values but haven't been tested on hardware. Labs lets you try them.</span>
           </div>
           <button class="btn" onclick={() => (ui.page = "settings")}>Open Labs</button>
-        </section>
+        </Card>
       {/if}
     </div>
   {/if}
 </div>
 
+{#snippet loadingHint()}
+  {#if loading}<Hint loading>Loading {ui.switching ?? s?.features.picture_mode ?? "new"} settings…</Hint>{/if}
+{/snippet}
+
 <style>
   .page {
-    padding: 34px 40px 80px;
     max-width: 1180px;
   }
   header {
@@ -241,13 +244,13 @@
   .status {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     font-weight: 600;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--mint);
     background: var(--mint-soft);
-    padding: 6px 12px;
-    border-radius: 99px;
+    padding: 6px var(--space-3);
+    border-radius: var(--r-full);
   }
   .status.demo {
     color: var(--accent-ink);
@@ -263,11 +266,11 @@
 
   .strip {
     display: flex;
-    gap: 16px;
+    gap: var(--space-4);
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    padding: 4px 2px 18px;
-    margin-bottom: 8px;
+    padding: var(--space-1) 2px 18px;
+    margin-bottom: var(--space-2);
   }
   .mon {
     scroll-snap-align: start;
@@ -277,8 +280,8 @@
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    padding: 20px 14px 16px;
-    border-radius: var(--r-lg);
+    padding: var(--space-5) 14px var(--space-4);
+    border-radius: var(--r-2xl);
     border: 1px solid var(--line);
     background: var(--panel);
     box-shadow: var(--shadow);
@@ -293,10 +296,10 @@
   }
   .mon .name {
     font-weight: 600;
-    margin-top: 8px;
+    margin-top: var(--space-2);
   }
   .tag {
-    font-size: 12px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .tag.ok {
@@ -311,26 +314,14 @@
     box-shadow: none;
     color: var(--text-2);
   }
-  .spin {
-    display: grid;
-    place-items: center;
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-  .spin.on :global(svg) {
-    animation: spin var(--spin) linear infinite;
-  }
 
   .banner {
     display: flex;
-    gap: 12px;
+    gap: var(--space-3);
     align-items: flex-start;
-    padding: 12px 16px;
-    border-radius: var(--r);
-    margin-bottom: 16px;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--r-xl);
+    margin-bottom: var(--space-4);
     line-height: 1.45;
   }
   .banner.warn {
@@ -352,44 +343,18 @@
     gap: 18px;
     align-items: start;
   }
-  .title {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-  .hint {
-    font-size: 12px;
-    color: var(--text-3);
-  }
 
   .feature {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 10px;
+    gap: var(--space-3);
+    padding: var(--space-3) 10px;
     margin: 0 -10px;
-    border-radius: 14px;
+    border-radius: var(--r-lg);
     transition: background var(--base) var(--ease);
   }
   .feature.on {
     background: var(--accent-soft);
-  }
-  .ficon {
-    flex: none;
-    width: 36px;
-    height: 36px;
-    display: grid;
-    place-items: center;
-    border-radius: 11px;
-    background: var(--panel-2);
-    color: var(--accent);
-    box-shadow: inset 0 0 0 1px var(--line);
-  }
-  .feature.on .ficon {
-    background: var(--grad);
-    color: #fff;
-    box-shadow: none;
   }
   .ftext {
     flex: 1;
@@ -403,7 +368,7 @@
   }
   .demo-row {
     border-top: 1px dashed var(--line-strong);
-    border-radius: 0 0 14px 14px;
+    border-radius: 0 0 var(--r-lg) var(--r-lg);
     margin-top: 6px;
   }
   .badge {
@@ -412,7 +377,7 @@
     letter-spacing: 0.02em;
     padding: 1px 7px;
     margin-left: 6px;
-    border-radius: 99px;
+    border-radius: var(--r-full);
     background: var(--accent-soft);
     color: var(--accent-ink);
     vertical-align: 1px;
@@ -425,15 +390,16 @@
     margin-top: 6px;
   }
   .tile {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 14px 6px 12px;
-    border-radius: 16px;
+    gap: var(--space-2);
+    padding: 14px 6px var(--space-3);
+    border-radius: var(--r-xl);
     border: 1px solid var(--line);
     background: var(--panel-2);
-    font-size: 12px;
+    font-size: var(--fs-xs);
     font-weight: 550;
     color: var(--text-2);
     text-align: center;
@@ -450,70 +416,16 @@
     color: var(--text);
     box-shadow: 0 0 0 2px var(--accent);
   }
-  .tile {
-    position: relative;
-  }
-  .ai {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    color: var(--accent);
-    opacity: 0.8;
-  }
-  /* The busy ring (app.css) goes around the tile icon while switching. */
-  .ticon {
-    position: relative;
-    --ring-inset: -5px;
-  }
-  .card.loading {
-    position: relative;
-    overflow: hidden;
-  }
-  .card.loading :global(.slider),
-  .card.loading :global(.row),
-  .card.loading .inforow {
-    pointer-events: none;
-    opacity: 0.55;
-    transition: opacity var(--base) var(--ease);
-  }
-  .card.loading::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--accent) 10%, transparent) 50%, transparent 70%);
-    background-size: 220% 100%;
-    animation: sheen 1.1s var(--ease) infinite;
-  }
-  @keyframes sheen {
-    from {
-      background-position: 120% 0;
-    }
-    to {
-      background-position: -100% 0;
-    }
-  }
-  .loading-hint {
-    color: var(--accent-ink);
-    font-weight: 600;
-  }
   .tile:disabled {
     cursor: default;
     opacity: 0.6;
   }
-  .ticon {
-    width: 40px;
-    height: 40px;
-    border-radius: 13px;
-    display: grid;
-    place-items: center;
-    background: var(--panel);
+  .ai {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
     color: var(--accent);
-    box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--line);
-  }
-  .tile.active .ticon {
-    background: var(--grad);
-    color: #fff;
+    opacity: 0.8;
   }
 
   .inforow {
@@ -524,22 +436,12 @@
     border-top: 1px solid var(--line);
     font-weight: 500;
   }
-  .inforow:first-of-type {
-    border-top: none;
-  }
-
-  .labs {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    background: linear-gradient(135deg, var(--accent-soft), transparent 70%), var(--panel);
-  }
 
   .empty {
     max-width: 620px;
     margin: 10px auto 0;
     text-align: center;
-    padding: 36px 40px;
+    padding: 36px var(--space-10);
   }
   .empty .float {
     display: flex;
@@ -553,14 +455,14 @@
     }
   }
   .empty h2 {
-    font-size: 20px;
+    font-size: var(--fs-2xl);
     margin-bottom: 6px;
   }
   .empty ol {
     text-align: left;
-    margin: 18px auto 24px;
+    margin: 18px auto var(--space-6);
     max-width: 440px;
-    padding-left: 20px;
+    padding-left: var(--space-5);
     color: var(--text-2);
     line-height: 1.7;
   }

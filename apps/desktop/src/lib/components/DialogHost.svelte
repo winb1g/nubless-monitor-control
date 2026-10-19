@@ -43,20 +43,20 @@
     z-index: 60;
     display: grid;
     place-items: center;
-    background: rgba(10, 12, 20, 0.38);
+    background: var(--scrim);
     backdrop-filter: blur(6px);
   }
   .dialog {
     width: min(420px, calc(100vw - 32px));
-    padding: 24px;
-    border-radius: var(--r-lg);
+    padding: var(--space-6);
+    border-radius: var(--r-2xl);
     background: var(--panel);
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--line);
   }
   h2 {
-    font-size: 17px;
-    margin-bottom: 8px;
+    font-size: var(--fs-xl);
+    margin-bottom: var(--space-2);
   }
   .actions {
     display: flex;

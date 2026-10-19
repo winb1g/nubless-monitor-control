@@ -8,6 +8,8 @@
   import { api } from "../api";
   import Slider from "../components/Slider.svelte";
   import Lock from "../components/Lock.svelte";
+  import IconBadge from "../components/IconBadge.svelte";
+  import Hint from "../components/Hint.svelte";
 
   const s = $derived(ui.state);
   const ctl = (id: string) => s?.controls.find((c) => c.id === id);
@@ -64,7 +66,7 @@
       <div class="pmhead">
         <span>Picture mode</span>
         {#if loading}
-          <span class="status">Loading…</span>
+          <Hint loading>Loading…</Hint>
         {:else if !s.demo && !pm.enabled}
           <Lock control={pm} />
         {/if}
@@ -81,10 +83,9 @@
             title={c.label}
             onclick={() => !current && pickPictureMode(c.label)}
           >
-            <span class="glyph" class:busy-ring={ui.switching === c.label}>
-              <Icon size={17} />
+            <IconBadge icon={Icon} iconSize={17} tone={current ? "brand" : "soft"} glow={current} busy={ui.switching === c.label}>
               {#if s.features.ai_capable_modes.includes(c.label)}<span class="ai"><Sparkles size={9} /></span>{/if}
-            </span>
+            </IconBadge>
             <span class="label">{short[c.label] ?? c.label}</span>
           </button>
         {/each}
@@ -101,11 +102,11 @@
 <style>
   .pop {
     margin: 10px;
-    padding: 14px 16px 8px;
+    padding: 14px var(--space-4) var(--space-2);
     border-radius: 20px;
     background: var(--panel);
     border: 1px solid var(--line);
-    box-shadow: 0 18px 40px -16px rgba(16, 24, 40, 0.45);
+    box-shadow: var(--shadow-popover);
     height: calc(100vh - 20px);
     display: flex;
     flex-direction: column;
@@ -115,7 +116,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding-bottom: 12px;
+    padding-bottom: var(--space-3);
     border-bottom: 1px solid var(--line);
   }
   .who {
@@ -126,14 +127,14 @@
     line-height: 1.25;
   }
   .who b {
-    font-size: 14px;
+    font-size: var(--fs-base);
     font-weight: 650;
   }
   .who span {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .dot {
@@ -181,14 +182,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 600;
-    margin: 12px 0 8px;
-  }
-  .status {
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--accent-ink);
+    margin: var(--space-3) 0 var(--space-2);
   }
   .grid {
     display: grid;
@@ -200,9 +196,9 @@
     flex-direction: column;
     align-items: center;
     gap: 5px;
-    padding: 8px 2px 7px;
+    padding: var(--space-2) 2px 7px;
     border: none;
-    border-radius: 12px;
+    border-radius: var(--r-md);
     background: transparent;
     color: var(--text-2);
     transition: background var(--fast), transform var(--fast) var(--spring);
@@ -212,23 +208,6 @@
   }
   .mode:active:not(:disabled) {
     transform: scale(0.95);
-  }
-  .glyph {
-    position: relative;
-    width: 36px;
-    height: 36px;
-    border-radius: 11px;
-    display: grid;
-    place-items: center;
-    background: var(--panel-2);
-    color: var(--accent);
-    box-shadow: inset 0 0 0 1px var(--line);
-    transition: background var(--base) var(--ease), color var(--base);
-  }
-  .mode.active .glyph {
-    background: var(--grad);
-    color: #fff;
-    box-shadow: 0 6px 14px -6px rgba(108, 92, 255, 0.7);
   }
   .ai {
     position: absolute;
@@ -244,7 +223,7 @@
     box-shadow: 0 0 0 1px var(--line);
   }
   .label {
-    font-size: 11px;
+    font-size: var(--fs-2xs);
     font-weight: 550;
     line-height: 1.1;
     white-space: nowrap;
@@ -264,7 +243,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: var(--space-3);
   }
   footer {
     margin-top: auto;
@@ -280,8 +259,8 @@
     border: none;
     background: none;
     padding: 7px 10px;
-    border-radius: 10px;
-    font-size: 13px;
+    border-radius: var(--r-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
     font-weight: 550;
   }

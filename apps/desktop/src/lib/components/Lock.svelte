@@ -45,7 +45,7 @@
     font-size: 11.5px;
     font-weight: 600;
     padding: 3px 9px;
-    border-radius: 99px;
+    border-radius: var(--r-full);
     background: var(--panel-2);
     color: var(--text-3);
     box-shadow: inset 0 0 0 1px var(--line);
@@ -62,20 +62,20 @@
   .pop {
     position: absolute;
     right: 0;
-    top: calc(100% + 8px);
+    top: calc(100% + var(--space-2));
     z-index: 20;
     width: 260px;
     display: flex;
-    gap: 8px;
-    padding: 12px;
-    font-size: 12.5px;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    font-size: var(--fs-sm);
     line-height: 1.45;
     color: var(--text-2);
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 14px;
+    border-radius: var(--r-lg);
     box-shadow: var(--shadow-lg);
-    animation: in 160ms var(--ease);
+    animation: in var(--fast) var(--ease);
   }
   .pop :global(svg) {
     flex: none;

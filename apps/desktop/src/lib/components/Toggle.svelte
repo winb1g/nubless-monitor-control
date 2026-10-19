@@ -27,7 +27,7 @@
     flex: none;
     width: 46px;
     height: 28px;
-    border-radius: 99px;
+    border-radius: var(--r-full);
     border: none;
     padding: 3px;
     background: var(--line-strong);
@@ -42,8 +42,8 @@
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 2px 6px rgba(20, 24, 40, 0.25);
+    background: var(--knob);
+    box-shadow: var(--shadow-knob);
     transition: transform var(--base) var(--spring), width var(--fast) var(--ease);
   }
   .toggle:active:not(:disabled):not(.pending) .knob {

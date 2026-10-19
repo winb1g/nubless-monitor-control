@@ -3,6 +3,8 @@
   import { fly } from "svelte/transition";
   import { GitBranch, Bug, ShieldCheck, Heart, Scale } from "@lucide/svelte";
   import { ui } from "../store.svelte";
+  import Card from "../components/Card.svelte";
+  import IconBadge from "../components/IconBadge.svelte";
   import { inTauri } from "../api";
 
   const REPO = "https://github.com/winb1g/nubless-monitor-control";
@@ -31,28 +33,33 @@
   </section>
 
   <div class="grid">
-    <section class="card" in:fly={rise(1)}>
-      <span class="icon"><ShieldCheck size={18} /></span>
-      <h2>Our promise</h2>
-      <p class="muted">nubless will never brick your display, and you'll never have to reach for the monitor's menu to undo something it did. Values stay in safe ranges, features that don't mix stay apart, and your original settings are always one click away.</p>
-      <button class="link" onclick={() => open(`${REPO}/blob/main/SAFETY.md`)}>Read the safety contract</button>
-    </section>
-    <section class="card" in:fly={rise(2)}>
-      <span class="icon"><Heart size={18} /></span>
-      <h2>Thanks</h2>
-      <p class="muted">Inspired by OpenLogi, MonitorControl and BetterDisplay. Talks to your monitor with ddc-hi. Built with Tauri and Svelte.</p>
-    </section>
-    <section class="card" in:fly={rise(3)}>
-      <span class="icon"><Scale size={18} /></span>
-      <h2>Open source</h2>
-      <p class="muted">MIT licensed. Not affiliated with LG Electronics. LG, LG Switch and UltraGear are trademarks of LG Electronics.</p>
-    </section>
+    <Card i={1}>
+      <div class="stack">
+        <IconBadge icon={ShieldCheck} tone="tint" />
+        <h2>Our promise</h2>
+        <p class="muted">nubless will never brick your display, and you'll never have to reach for the monitor's menu to undo something it did. Values stay in safe ranges, features that don't mix stay apart, and your original settings are always one click away.</p>
+        <button class="link" onclick={() => open(`${REPO}/blob/main/SAFETY.md`)}>Read the safety contract</button>
+      </div>
+    </Card>
+    <Card i={2}>
+      <div class="stack">
+        <IconBadge icon={Heart} tone="tint" />
+        <h2>Thanks</h2>
+        <p class="muted">Inspired by OpenLogi, MonitorControl and BetterDisplay. Talks to your monitor with ddc-hi. Built with Tauri and Svelte.</p>
+      </div>
+    </Card>
+    <Card i={3}>
+      <div class="stack">
+        <IconBadge icon={Scale} tone="tint" />
+        <h2>Open source</h2>
+        <p class="muted">MIT licensed. Not affiliated with LG Electronics. LG, LG Switch and UltraGear are trademarks of LG Electronics.</p>
+      </div>
+    </Card>
   </div>
 </div>
 
 <style>
   .page {
-    padding: 34px 40px 80px;
     max-width: 960px;
   }
   .hero {
@@ -61,14 +68,14 @@
     align-items: center;
     text-align: center;
     gap: 6px;
-    padding: 20px 0 30px;
+    padding: var(--space-5) 0 30px;
   }
   .logo {
     border: none;
     background: none;
     padding: 0;
     margin-bottom: 10px;
-    filter: drop-shadow(0 14px 24px rgba(108, 92, 255, 0.35));
+    filter: drop-shadow(0 14px 24px rgb(var(--glow-rgb) / 0.35));
     transition: transform var(--base) var(--spring);
   }
   .logo:hover {
@@ -86,14 +93,14 @@
     }
   }
   h1 {
-    font-size: 32px;
+    font-size: var(--fs-4xl);
   }
   .ver {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-3);
     background: var(--panel-2);
-    padding: 4px 12px;
-    border-radius: 99px;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--r-full);
     margin-top: 6px;
   }
   .actions {
@@ -104,21 +111,12 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
+    gap: var(--space-4);
   }
-  .card {
+  .stack {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-  }
-  .icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 11px;
-    display: grid;
-    place-items: center;
-    background: var(--accent-soft);
-    color: var(--accent);
+    gap: var(--space-2);
   }
   .link {
     align-self: flex-start;
