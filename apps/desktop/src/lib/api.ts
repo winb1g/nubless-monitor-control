@@ -10,6 +10,7 @@ type Backend = {
   setControl(id: string, value: number): Promise<Outcome>;
   toggleFeature(feature: Feature, on: boolean, confirmed: boolean): Promise<FeatureOutcome>;
   simulatePbp(on: boolean): Promise<FeatureOutcome>;
+  pickPictureMode(label: string, confirmed: boolean): Promise<FeatureOutcome>;
   undo(): Promise<Outcome>;
   resetOriginal(): Promise<Outcome>;
   openMain(page?: string): Promise<void>;
@@ -29,6 +30,7 @@ async function tauriBackend(): Promise<Backend> {
     setControl: (id, value) => invoke("set_control", { id, value }),
     toggleFeature: (feature, on, confirmed) => invoke("toggle_feature", { feature, on, confirmed }),
     simulatePbp: (on) => invoke("simulate_pbp", { on }),
+    pickPictureMode: (label, confirmed) => invoke("pick_picture_mode", { label, confirmed }),
     undo: () => invoke("undo"),
     resetOriginal: () => invoke("reset_original"),
     openMain: (page) => invoke("open_main", { page: page ?? null }),

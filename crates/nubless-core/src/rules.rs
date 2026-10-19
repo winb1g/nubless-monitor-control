@@ -1,4 +1,4 @@
-//! Feature interlocks, reproducing LG Switch's behaviour (see `docs/rules.md`
+//! Feature interlockfor s in all_states().filter(valid), reproducing LG Switch's (0u8..64).map(|b| FeatureState {ehaviour (see `docs/rules.md`
 //! for the evidence). Pure functions over a [`FeatureState`] so every
 //! combination can be tested.
 //!
@@ -12,6 +12,13 @@
 //!
 //! While PBP/PIP is on, none of them can be turned on, and AI Upscaling options
 //! are unavailable. The Personalized Picture Wizard needs HDR and PBP/PIP off.
+//!
+//! AI Scene Optimization and AI Picture Mode only work in some picture modes
+//! (LG Switch's `PictureModeToAISupportedMap`: Personalized Picture, Custom,
+//! Gamer 1, Gamer 2, Max Brightness, FPS, RTS, Vivid). In any other mode LG
+//! Switch turns both off and disables them, and the monitor refuses a switch to
+//! such a mode while AI is on. nubless asks first and turns AI off for you
+//! ([`decide_picture_mode`]) instead of letting the switch fail.
 //!
 //! nubless adds one rule of its own: **turning a feature off is always allowed,
 //! immediately, without a question**, so no combination can trap the user.
@@ -30,6 +37,8 @@ pub struct FeatureState {
     pub pbp: bool,
     /// HDR active (read from the monitor/OS, not set here).
     pub hdr: bool,
+    /// The current picture mode does not support the AI features.
+    pub picture_mode_blocks_ai: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
@@ -94,6 +103,15 @@ pub enum Notice {
     PbpTurnedOff {
         turned_off: Vec<Feature>,
     },
+    /// `feature` needs an AI-capable picture mode.
+    NeedsAiPictureMode {
+        feature: Feature,
+    },
+    /// Question before switching to `mode`, which turns off `turns_off`.
+    LeaveAiForMode {
+        mode: String,
+        turns_off: Vec<Feature>,
+    },
     AiUpscalingNeedsPbpOff,
     WizardNeedsHdrOff,
     WizardNeedsPbpOff,
@@ -124,6 +142,15 @@ impl Notice {
                 feature.label()
             ),
             Notice::PbpTurnedOff { turned_off } => format!("PBP/PIP is on, so {} turned off.", list(turned_off)),
+            Notice::NeedsAiPictureMode { feature } => format!(
+                "{} isn't available in this picture mode. Switch to Personalized Picture, Gamer 1, Gamer 2 or FPS first.",
+                feature.label()
+            ),
+            Notice::LeaveAiForMode { mode, turns_off } => format!(
+                "{mode} doesn't work with {}. Turn {} off and switch to {mode}?",
+                list(turns_off),
+                if turns_off.len() == 1 { "it" } else { "them" }
+            ),
             Notice::AiUpscalingNeedsPbpOff => "AI Upscaling is not available while PBP/PIP is on.".into(),
             Notice::WizardNeedsHdrOff => {
                 "The Personalized Picture Wizard needs HDR off. Turn HDR off in the system display settings, then try again.".into()
@@ -171,6 +198,11 @@ pub fn decide(state: FeatureState, feature: Feature, on: bool) -> Decision {
             reason: Notice::BlockedByPbp { feature },
         };
     }
+    if state.picture_mode_blocks_ai && feature != Feature::MyDisplayPreset {
+        return Decision::Blocked {
+            reason: Notice::NeedsAiPictureMode { feature },
+        };
+    }
     let others: Vec<Feature> = Feature::ALL
         .into_iter()
         .filter(|f| *f != feature && f.get(&state))
@@ -196,6 +228,35 @@ pub fn decide(state: FeatureState, feature: Feature, on: bool) -> Decision {
             },
             next,
         },
+    }
+}
+
+/// What happens when the user picks picture mode `mode`.
+pub fn decide_picture_mode(state: FeatureState, mode: &str, mode_allows_ai: bool) -> Decision {
+    let mut next = FeatureState {
+        picture_mode_blocks_ai: !mode_allows_ai,
+        ..state
+    };
+    if mode_allows_ai {
+        return Decision::Apply { next, notice: None };
+    }
+    let turns_off: Vec<Feature> = [Feature::AiSceneOptimization, Feature::AiPictureMode]
+        .into_iter()
+        .filter(|f| f.get(&state))
+        .collect();
+    for f in &turns_off {
+        f.set(&mut next, false);
+    }
+    if turns_off.is_empty() {
+        Decision::Apply { next, notice: None }
+    } else {
+        Decision::Confirm {
+            question: Notice::LeaveAiForMode {
+                mode: mode.to_string(),
+                turns_off,
+            },
+            next,
+        }
     }
 }
 
@@ -235,6 +296,10 @@ pub fn availability(state: FeatureState) -> Availabilities {
         if state.pbp {
             Availability::Unavailable {
                 reason: Notice::BlockedByPbp { feature: f },
+            }
+        } else if state.picture_mode_blocks_ai && f != Feature::MyDisplayPreset {
+            Availability::Unavailable {
+                reason: Notice::NeedsAiPictureMode { feature: f },
             }
         } else {
             Availability::Available
@@ -276,11 +341,20 @@ mod tests {
             my_display_preset: b & 4 != 0,
             pbp: b & 8 != 0,
             hdr: b & 16 != 0,
+            picture_mode_blocks_ai: b & 32 != 0,
         })
     }
 
     fn smart_count(s: &FeatureState) -> usize {
         Feature::ALL.iter().filter(|f| f.get(s)).count()
+    }
+
+    /// States the rules can produce: one smart feature at most, none under
+    /// PBP/PIP, and no AI feature in a picture mode that blocks AI.
+    fn valid(s: &FeatureState) -> bool {
+        smart_count(s) <= 1
+            && !(s.pbp && smart_count(s) > 0)
+            && !(s.picture_mode_blocks_ai && (s.ai_scene_optimization || s.ai_picture_mode))
     }
 
     #[test]
@@ -292,6 +366,7 @@ mod tests {
                         Decision::Apply { next, .. } | Decision::Confirm { next, .. } => next,
                         Decision::Blocked { .. } => continue,
                     };
+                    assert!(valid(&next), "{s:?} {f:?} {on} -> {next:?}");
                     assert!(smart_count(&next) <= 1, "{s:?} {f:?} {on} -> {next:?}");
                     assert!(!(next.pbp && smart_count(&next) > 0));
                     assert_eq!(
@@ -408,5 +483,70 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn picture_modes_keep_ai_consistent_from_every_state() {
+        for s in all_states().filter(valid) {
+            for allows in [true, false] {
+                let next = match decide_picture_mode(s, "Calibration1", allows) {
+                    Decision::Apply { next, .. } | Decision::Confirm { next, .. } => next,
+                    Decision::Blocked { .. } => {
+                        unreachable!("switching picture mode is never blocked")
+                    }
+                };
+                assert!(valid(&next), "{s:?} allows={allows} -> {next:?}");
+                assert_eq!(
+                    next.my_display_preset, s.my_display_preset,
+                    "My Display Preset is not affected"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn leaving_ai_for_a_calibration_mode_asks_first() {
+        let s = FeatureState {
+            ai_scene_optimization: true,
+            ..Default::default()
+        };
+        match decide_picture_mode(s, "Calibration1", false) {
+            Decision::Confirm { question, next } => {
+                assert!(!next.ai_scene_optimization && next.picture_mode_blocks_ai);
+                assert_eq!(
+                    question.text(),
+                    "Calibration1 doesn't work with AI Scene Optimization. Turn it off and switch to Calibration1?"
+                );
+            }
+            d => panic!("{d:?}"),
+        }
+        assert!(matches!(
+            decide_picture_mode(s, "Gamer 1", true),
+            Decision::Apply { notice: None, .. }
+        ));
+    }
+
+    #[test]
+    fn ai_needs_an_ai_capable_picture_mode() {
+        let s = FeatureState {
+            picture_mode_blocks_ai: true,
+            ..Default::default()
+        };
+        assert!(matches!(
+            decide(s, Feature::AiSceneOptimization, true),
+            Decision::Blocked { .. }
+        ));
+        assert!(matches!(
+            decide(s, Feature::AiPictureMode, true),
+            Decision::Blocked { .. }
+        ));
+        assert!(matches!(
+            decide(s, Feature::MyDisplayPreset, true),
+            Decision::Apply { .. }
+        ));
+        assert!(matches!(
+            availability(s).ai_scene_optimization,
+            Availability::Unavailable { .. }
+        ));
     }
 }

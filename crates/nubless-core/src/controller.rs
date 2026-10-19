@@ -159,10 +159,59 @@ impl<T: Transport> Controller<T> {
             .ok_or_else(|| ControlError::UnknownControl(id.to_string()))
     }
 
-    /// Read a control. A failed read is an error, never "0".
+    /// Read a control. A failed read is an error, never "0". For a sub-command
+    /// control the reading is the argument byte.
     pub fn read(&mut self, id: &str) -> Result<VcpReading, ControlError> {
         let c = self.control(id)?;
-        self.read_code(c.vcp)
+        self.read_control(c)
+    }
+
+    fn read_control(&mut self, c: &'static Control) -> Result<VcpReading, ControlError> {
+        self.read_control_as(c, self.policy)
+    }
+
+    /// Read back after a write or undo. Uses the relaxed policy for the query
+    /// so a change nubless made can always be verified and undone.
+    fn verify_read(&mut self, c: &'static Control) -> Option<u16> {
+        self.read_control_as(c, WritePolicy::Experimental)
+            .ok()
+            .map(|r| r.current)
+    }
+
+    fn read_control_as(
+        &mut self,
+        c: &'static Control,
+        policy: WritePolicy,
+    ) -> Result<VcpReading, ControlError> {
+        let ValueKind::SubCommand { sub, .. } = c.kind else {
+            return self.read_code(c.vcp);
+        };
+        // LG's read protocol: ask with (sub << 8) | 0xFF, then read the answer.
+        let query = safety::check_query(c, policy)?;
+        let mut last = None;
+        for attempt in 0..self.timing.read_attempts.max(1) {
+            if attempt > 0 {
+                sleep(self.timing.retry_delay);
+            }
+            self.pace();
+            if let Err(e) = self.transport.set_vcp(&query) {
+                last = Some(e);
+                continue;
+            }
+            self.settle();
+            match self.read_code(c.vcp) {
+                Ok(r) if (r.current >> 8) as u8 == sub && (r.current & 0xFF) != 0xFF => {
+                    return Ok(VcpReading {
+                        current: r.current & 0xFF,
+                        max: 0xFE,
+                    });
+                }
+                Ok(_) => last = Some(TransportError::NoReply(c.vcp)),
+                Err(ControlError::Transport(e)) => last = Some(e),
+                Err(e) => return Err(e),
+            }
+        }
+        Err(last.expect("at least one attempt").into())
     }
 
     pub fn read_code(&mut self, code: u8) -> Result<VcpReading, ControlError> {
@@ -175,7 +224,7 @@ impl<T: Transport> Controller<T> {
         // Validate first so a forbidden write costs no DDC traffic at all.
         let validated = safety::check_write(control, value, &self.caps, self.policy)?;
         let old = self
-            .read_code(control.vcp)
+            .read_control(control)
             .map_err(|_| ControlError::CannotReadCurrent(control.id))?;
         let needs_confirmation = control.needs_confirm_or_revert();
         if old.current == value {
@@ -210,17 +259,17 @@ impl<T: Transport> Controller<T> {
             .profile
             .controls
             .iter()
-            .find(|c| c.vcp == entry.vcp)
+            .find(|c| c.id == entry.control)
             .ok_or_else(|| ControlError::UnknownControl(entry.control.clone()))?;
         let max = self
-            .read_code(control.vcp)
+            .read_control_as(control, WritePolicy::Experimental)
             .map(|r| r.max)
             .unwrap_or(u16::MAX);
         let write = check_restore(control, entry.old, max, &self.caps)?;
         self.pace();
         self.transport.set_vcp(&write)?;
         self.settle();
-        let back = self.read_code(control.vcp).ok().map(|r| r.current);
+        let back = self.verify_read(control);
         if back == Some(entry.old) {
             self.journal.set_state(index, EntryState::Reverted);
             Ok(())
@@ -251,7 +300,7 @@ impl<T: Transport> Controller<T> {
             .iter()
             .filter(|c| c.writable && !matches!(c.kind, ValueKind::Info))
         {
-            if let Ok(r) = self.read_code(c.vcp) {
+            if let Ok(r) = self.read_control(c) {
                 values.insert(c.id.to_string(), r.current);
             }
         }
@@ -270,7 +319,7 @@ impl<T: Transport> Controller<T> {
             let result = (|| {
                 let control = self.control(id)?;
                 let old = self
-                    .read_code(control.vcp)
+                    .read_control(control)
                     .map_err(|_| ControlError::CannotReadCurrent(control.id))?;
                 if old.current == value {
                     return Ok(());
@@ -296,8 +345,13 @@ impl<T: Transport> Controller<T> {
         self.pace();
         let sent = self.transport.set_vcp(&write);
         self.settle();
-        let back = self.read_code(control.vcp).ok().map(|r| r.current);
-        if sent.is_ok() && back == Some(write.value()) {
+        let back = self.verify_read(control);
+        // For a sub-command the monitor reports only the argument byte.
+        let expected = match control.kind {
+            ValueKind::SubCommand { .. } => write.value() & 0xFF,
+            _ => write.value(),
+        };
+        if sent.is_ok() && back == Some(expected) {
             self.journal.set_state(index, EntryState::Applied);
             return Ok(());
         }
@@ -311,7 +365,7 @@ impl<T: Transport> Controller<T> {
                     self.pace();
                     let _ = self.transport.set_vcp(&undo);
                     self.settle();
-                    self.read_code(control.vcp).ok().map(|r| r.current) == Some(old)
+                    self.verify_read(control) == Some(old)
                 }
                 Err(_) => false,
             }
@@ -324,7 +378,7 @@ impl<T: Transport> Controller<T> {
         }
         Err(ControlError::NotApplied {
             id: control.id,
-            wanted: write.value(),
+            wanted: expected,
             got: back,
             outcome: if restored {
                 "the previous value was restored"
@@ -385,12 +439,15 @@ fn check_restore(
         {
             // Same checks passed except the value table; re-run with an in-range
             // value to obtain the token, then substitute the reported value.
-            let probe = match control.kind {
-                ValueKind::Range { min, .. } => min,
-                ValueKind::Choice { choices } => choices[0].raw,
-                ValueKind::Info => return Err(SafetyError::ReadOnly { id: control.id }),
+            let (probe, full) = match control.kind {
+                ValueKind::Range { min, .. } => (min, value),
+                ValueKind::Choice { choices } => (choices[0].raw, value),
+                ValueKind::SubCommand { sub, choices } if value < 0xFF => {
+                    (choices[0].raw, (u16::from(sub) << 8) | value)
+                }
+                _ => return Err(SafetyError::ReadOnly { id: control.id }),
             };
-            safety::check_write(control, probe, caps, relaxed).map(|w| w.with_value(value))
+            safety::check_write(control, probe, caps, relaxed).map(|w| w.with_value(full))
         }
         Err(e) => Err(e),
     }
@@ -502,5 +559,114 @@ mod tests {
         assert!(c.write("input", 0x11).is_err());
         assert!(c.write("picture-mode", 39).is_err());
         assert!(c.transport.writes.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod ai_channel_tests {
+    use super::*;
+    use crate::mock::MockMonitor;
+    use crate::profiles::gm950b::PROFILE;
+
+    fn ctl(policy: WritePolicy) -> Controller<MockMonitor> {
+        Controller::new(
+            MockMonitor::gm950b(),
+            &PROFILE,
+            policy,
+            Timing::instant(),
+            Journal::in_memory(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn reading_the_ai_channel_needs_labs() {
+        let mut c = ctl(WritePolicy::Safe);
+        assert!(matches!(
+            c.read("ai-scene-optimization"),
+            Err(ControlError::Safety(SafetyError::NotConfident { .. }))
+        ));
+        assert!(
+            c.transport.writes.is_empty(),
+            "not even a query is sent without Labs"
+        );
+    }
+
+    #[test]
+    fn ai_scene_optimization_uses_lg_query_then_set_protocol() {
+        let mut c = ctl(WritePolicy::Experimental);
+        assert_eq!(c.read("ai-scene-optimization").unwrap().current, 2);
+        assert_eq!(c.transport.writes, vec![(0xA6, 0x02FF)]);
+        c.write("ai-scene-optimization", 1).unwrap();
+        assert_eq!(c.transport.ai[&2], 1);
+        assert!(c.transport.writes.contains(&(0xA6, 0x0201)));
+        c.undo_last().unwrap();
+        assert_eq!(c.transport.ai[&2], 2);
+    }
+
+    #[test]
+    fn ai_sound_round_trips() {
+        let mut c = ctl(WritePolicy::Experimental);
+        c.write("ai-sound", 2).unwrap();
+        assert_eq!(c.read("ai-sound").unwrap().current, 2);
+        assert!(c.write("ai-sound", 3).is_err(), "only off/on");
+    }
+
+    #[test]
+    fn upscaling_is_readable_but_never_written() {
+        let mut c = ctl(WritePolicy::Experimental);
+        assert_eq!(c.read("ai-upscaling").unwrap().current, 1);
+        assert!(c.write("ai-upscaling", 4).is_err());
+        assert!(!c
+            .transport
+            .writes
+            .iter()
+            .any(|&(code, v)| code == 0xA6 && v >> 8 == 4 && v & 0xFF != 0xFF));
+    }
+
+    #[test]
+    fn refused_ai_change_is_rolled_back() {
+        let mut m = MockMonitor::gm950b();
+        m.ignore_writes_to.push(0xA6);
+        let mut c = Controller::new(
+            m,
+            &PROFILE,
+            WritePolicy::Experimental,
+            Timing::instant(),
+            Journal::in_memory(),
+        )
+        .unwrap();
+        assert!(matches!(
+            c.write("ai-scene-optimization", 1),
+            Err(ControlError::NotApplied { .. })
+        ));
+        assert_eq!(c.transport.ai[&2], 2);
+    }
+
+    #[test]
+    fn unmapped_sub_commands_stay_denied() {
+        static PC_AI: Control = Control {
+            id: "pc-ai",
+            label: "PC AI",
+            vcp: 0xA6,
+            kind: ValueKind::SubCommand {
+                sub: 3,
+                choices: &[crate::profile::Choice {
+                    raw: 2,
+                    label: "On",
+                }],
+            },
+            confidence: Confidence::WriteConfirmed,
+            standard: false,
+            writable: true,
+            risk: crate::profile::Risk::None,
+            note: "",
+        };
+        let caps = Capabilities::parse(crate::profiles::gm950b::CAPABILITIES_SAMPLE).unwrap();
+        assert!(matches!(
+            safety::check_write(&PC_AI, 2, &caps, WritePolicy::Experimental),
+            Err(SafetyError::Denied { .. })
+        ));
+        assert!(safety::check_query(&PC_AI, WritePolicy::Experimental).is_err());
     }
 }

@@ -63,6 +63,10 @@ pub enum ValueKind {
     Choice { choices: &'static [Choice] },
     /// Read-only information (firmware level, usage time, bitmasks).
     Info,
+    /// One sub-command of LG's multiplexed AI channel (VCP 0xA6). The value sent
+    /// is `(sub << 8) | arg`; reading needs a query write of `(sub << 8) | 0xFF`
+    /// first, exactly as LG Switch does. `choices` lists the allowed `arg`s.
+    SubCommand { sub: u8, choices: &'static [Choice] },
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -86,7 +90,9 @@ pub struct Control {
 impl Control {
     pub fn choice_label(&self, raw: u16) -> Option<&'static str> {
         match self.kind {
-            ValueKind::Choice { choices } => choices.iter().find(|c| c.raw == raw).map(|c| c.label),
+            ValueKind::Choice { choices } | ValueKind::SubCommand { choices, .. } => {
+                choices.iter().find(|c| c.raw == raw).map(|c| c.label)
+            }
             _ => None,
         }
     }
@@ -94,7 +100,9 @@ impl Control {
     pub fn value_is_valid(&self, raw: u16) -> bool {
         match self.kind {
             ValueKind::Range { min, max } => (min..=max).contains(&raw),
-            ValueKind::Choice { choices } => choices.iter().any(|c| c.raw == raw),
+            ValueKind::Choice { choices } | ValueKind::SubCommand { choices, .. } => {
+                choices.iter().any(|c| c.raw == raw)
+            }
             ValueKind::Info => false,
         }
     }

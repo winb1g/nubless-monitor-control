@@ -26,6 +26,7 @@ function controls(labs: boolean, v: Record<string, number>): ControlView[] {
     c({ id: "color-temperature", label: "Color temperature", group: "picture", kind: "info", enabled: false, reason: UNMAPPED }),
     strong(c({ id: "volume", label: "Volume", group: "sound", kind: "range", min: 0, max: 100 })),
     strong(c({ id: "mute", label: "Mute", group: "sound", kind: "choice", choices: [{ raw: 1, label: "Muted" }, { raw: 2, label: "Unmuted" }] })),
+    strong(c({ id: "ai-sound", label: "AI Sound", group: "sound", kind: "choice", choices: [{ raw: 1, label: "Off" }, { raw: 2, label: "On" }] })),
     c({ id: "input", label: "Input", group: "info", kind: "choice", enabled: false, reason: "Changing this could disconnect nubless from your monitor, so it stays with the monitor's own menu.", choices: [{ raw: 15, label: "DisplayPort" }] }),
     c({ id: "firmware", label: "Firmware", group: "info", kind: "info", enabled: false, reason: INFO }),
     c({ id: "usage-hours", label: "Usage time (hours)", group: "info", kind: "info", enabled: false, reason: UNMAPPED }),
@@ -51,11 +52,13 @@ const key: Record<Feature, keyof FeatureState> = {
 const list = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
 export function previewBackend() {
-  const values: Record<string, number> = { brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
+  const values: Record<string, number> = { "ai-sound": 1, brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
   const original = { ...values };
   let labs = false;
   let connected = true;
-  let features: FeatureState = { ai_scene_optimization: false, ai_picture_mode: false, my_display_preset: false, pbp: false, hdr: false };
+  let features: FeatureState = { ai_scene_optimization: false, ai_picture_mode: false, my_display_preset: false, pbp: false, hdr: false, picture_mode_blocks_ai: false };
+  const AI_MODES = ["Personalized Picture", "Gamer 1", "Gamer 2", "FPS"];
+  let picture = "Personalized Picture";
   const history: [string, number][] = [];
   const listeners: ((s: AppState) => void)[] = [];
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -69,7 +72,9 @@ export function previewBackend() {
     features: {
       state: features,
       availability: Object.fromEntries(["ai_scene_optimization", "ai_picture_mode", "my_display_preset", "ai_upscaling", "picture_wizard"].map((k) => [k, features.pbp ? { state: "unavailable", reason: { kind: "blocked-by-pbp" } } : { state: "available" }])),
-      mapped: true,
+      locks: {},
+      picture_mode: picture,
+      ai_capable_modes: AI_MODES,
     },
     baseline: { saved: true, values: Object.keys(original).length, just_saved: false, error: null },
     labs,
@@ -97,6 +102,7 @@ export function previewBackend() {
       if (features[key[f]] === on) return { kind: "applied", state: state(), notice: null };
       if (!on) { features = { ...features, [key[f]]: false }; emit(); return { kind: "applied", state: state(), notice: null }; }
       if (features.pbp) return { kind: "blocked", reason: `${names[f]} is not available while PBP/PIP is on. Turn PBP/PIP off first.`, state: state() };
+      if (features.picture_mode_blocks_ai && f !== "my-display-preset") return { kind: "blocked", reason: `${names[f]} isn't available in this picture mode. Switch to Personalized Picture, Gamer 1, Gamer 2 or FPS first.`, state: state() };
       const others = (Object.keys(key) as Feature[]).filter((o) => o !== f && features[key[o]]);
       if (others.length && f !== "ai-scene-optimization" && !confirmed)
         return { kind: "confirm", question: `Turning on ${names[f]} will turn off ${list(others.map((o) => names[o]))}. Continue?` };
@@ -106,6 +112,17 @@ export function previewBackend() {
       emit();
       const notice = others.length && f === "ai-scene-optimization" ? `${names[f]} is on, so ${list(others.map((o) => names[o]))} turned off.` : null;
       return { kind: "applied", state: state(), notice };
+    },
+    async pickPictureMode(label: string, confirmed: boolean): Promise<FeatureOutcome> {
+      const allows = AI_MODES.includes(label);
+      const on = (["ai-scene-optimization", "ai-picture-mode"] as Feature[]).filter((f) => features[key[f]]);
+      if (!allows && on.length && !confirmed)
+        return { kind: "confirm", question: `${label} doesn't work with ${list(on.map((f) => names[f]))}. Turn ${on.length === 1 ? "it" : "them"} off and switch to ${label}?` };
+      if (!allows) features = { ...features, ai_scene_optimization: false, ai_picture_mode: false };
+      features = { ...features, picture_mode_blocks_ai: !allows };
+      picture = label;
+      emit();
+      return { kind: "applied", state: state(), notice: null };
     },
     async simulatePbp(on: boolean): Promise<FeatureOutcome> {
       const off = (Object.keys(key) as Feature[]).filter((o) => on && features[key[o]]);

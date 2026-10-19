@@ -1,5 +1,7 @@
 //! `nubless`: control an LG 27GM950B from the command line.
 
+mod probe;
+
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -68,6 +70,24 @@ enum Command {
     },
     /// Print the monitor's raw capabilities string.
     Caps,
+    /// Read-only mapping tools: see which codes change when you change a setting.
+    Probe {
+        #[command(subcommand)]
+        action: ProbeAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProbeAction {
+    /// Save every readable code to FILE.
+    Save { file: PathBuf },
+    /// Compare the monitor with FILE and print what changed.
+    Diff { file: PathBuf },
+    /// Print every change as it happens.
+    Watch {
+        #[arg(long, default_value_t = 180)]
+        seconds: u64,
+    },
 }
 
 #[derive(Subcommand)]
@@ -164,6 +184,14 @@ fn run(cli: Cli) -> AnyResult {
             println!("{}", ctl.capabilities().raw);
             Ok(())
         }
+        Command::Probe { action } => match action {
+            ProbeAction::Save { file } => Ok(probe::save(&mut ctl, &file)?),
+            ProbeAction::Diff { file } => probe::diff(&mut ctl, &file),
+            ProbeAction::Watch { seconds } => {
+                probe::watch(&mut ctl, seconds);
+                Ok(())
+            }
+        },
         Command::Controls | Command::List => unreachable!(),
     }
 }

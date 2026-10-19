@@ -19,6 +19,9 @@ pub struct MockMonitor {
     pub flaky_every: u32,
     reads: u32,
     pub writes: Vec<(u8, u16)>,
+    /// LG AI channel state per sub-command (0xA6): 2 = AI Scene Optimization,
+    /// 4 = AI Upscaling, 6 = AI Sound; 1 = off, 2 = on. Seeded from a real unit.
+    pub ai: BTreeMap<u8, u8>,
 }
 
 impl Default for MockMonitor {
@@ -61,6 +64,7 @@ impl MockMonitor {
             flaky_every: 0,
             reads: 0,
             writes: Vec::new(),
+            ai: BTreeMap::from([(2, 2), (4, 1), (6, 1)]),
         }
     }
 }
@@ -83,6 +87,22 @@ impl Transport for MockMonitor {
 
     fn set_vcp(&mut self, write: &ValidatedWrite) -> Result<(), TransportError> {
         self.writes.push((write.code(), write.value()));
+        if write.code() == crate::safety::AI_CHANNEL {
+            // LG's AI channel: (sub << 8) | 0xFF asks for a value, anything else sets it.
+            let (sub, arg) = ((write.value() >> 8) as u8, (write.value() & 0xFF) as u8);
+            if arg != crate::safety::SUB_QUERY && !self.ignore_writes_to.contains(&write.code()) {
+                self.ai.insert(sub, arg);
+            }
+            let answer = self.ai.get(&sub).copied().unwrap_or(0xFF);
+            self.values.insert(
+                write.code(),
+                VcpReading {
+                    current: (u16::from(sub) << 8) | u16::from(answer),
+                    max: 0xFFFF,
+                },
+            );
+            return Ok(());
+        }
         if self.ignore_writes_to.contains(&write.code()) {
             return Ok(());
         }

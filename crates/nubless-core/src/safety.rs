@@ -75,18 +75,87 @@ pub enum SafetyError {
     },
 }
 
+/// LG's AI channel. Denied as a whole; only the sub-commands below get through.
+pub const AI_CHANNEL: u8 = 0xA6;
+/// Low byte that turns a 0xA6 write into "report this sub-command's value".
+pub const SUB_QUERY: u8 = 0xFF;
+/// 0xA6 sub-commands decoded from LG Switch (`AIMODE_DISPLAYSETTINGS_VALUES`):
+/// `(sub-command, may set a value)`. 2 = AI Scene Optimization, 4 = AI Upscaling
+/// (value encoding unconfirmed, so query only), 6 = AI Sound. Everything else on
+/// 0xA6 (supported-option lists, PC AI mode, scene prediction) stays denied.
+pub const AI_SUBCOMMANDS: &[(u8, bool)] = &[(2, true), (4, false), (6, true)];
+
+fn sub_of(control: &Control) -> Option<u8> {
+    match control.kind {
+        ValueKind::SubCommand { sub, .. } => Some(sub),
+        _ => None,
+    }
+}
+
+fn sub_command_denied(control: &Control, sub: u8, for_set: bool) -> Option<SafetyError> {
+    let ok = control.vcp == AI_CHANNEL
+        && AI_SUBCOMMANDS
+            .iter()
+            .any(|&(s, settable)| s == sub && (settable || !for_set));
+    (!ok).then_some(SafetyError::Denied {
+        code: control.vcp,
+        reason: "LG AI channel sub-command that nubless has not mapped",
+    })
+}
+
+/// The query write LG Switch sends before reading a 0xA6 sub-command. It sets
+/// nothing; it asks the monitor to report the current value. Still a write on
+/// the wire, so it needs Labs (or a write-confirmed control).
+pub fn check_query(
+    control: &'static Control,
+    policy: WritePolicy,
+) -> Result<ValidatedWrite, SafetyError> {
+    let Some(sub) = sub_of(control) else {
+        return Err(SafetyError::ReadOnly { id: control.id });
+    };
+    if let Some(e) = sub_command_denied(control, sub, false) {
+        return Err(e);
+    }
+    let allowed = control.confidence == crate::profile::Confidence::WriteConfirmed
+        || (policy == WritePolicy::Experimental
+            && control.confidence >= crate::profile::Confidence::Candidate);
+    if !allowed {
+        return Err(SafetyError::NotConfident {
+            id: control.id,
+            confidence: control.confidence,
+            hint: " (reading it needs Labs / --experimental)",
+        });
+    }
+    Ok(ValidatedWrite {
+        code: AI_CHANNEL,
+        value: (u16::from(sub) << 8) | u16::from(SUB_QUERY),
+    })
+}
+
 /// Decide whether `value` may be written to `control` on a monitor with `caps`.
+/// For a sub-command control, `value` is the argument; the sub-command byte is
+/// added here.
 pub fn check_write(
     control: &'static Control,
     value: u16,
     caps: &Capabilities,
     policy: WritePolicy,
 ) -> Result<ValidatedWrite, SafetyError> {
-    if let Some(reason) = deny_reason(control.vcp) {
-        return Err(SafetyError::Denied {
-            code: control.vcp,
-            reason,
-        });
+    let sub = sub_of(control);
+    match sub {
+        Some(sub) => {
+            if let Some(e) = sub_command_denied(control, sub, true) {
+                return Err(e);
+            }
+        }
+        None => {
+            if let Some(reason) = deny_reason(control.vcp) {
+                return Err(SafetyError::Denied {
+                    code: control.vcp,
+                    reason,
+                });
+            }
+        }
     }
     if control.risk == Risk::DeadEnd {
         return Err(SafetyError::DeadEnd { id: control.id });
@@ -106,10 +175,12 @@ pub fn check_write(
             hint,
         });
     }
-    if !caps.declares(control.vcp) {
+    // The 27GM950B answers 0xA6 without declaring it. For sub-commands the
+    // controller requires a successful query read before any write instead.
+    if sub.is_none() && !caps.declares(control.vcp) {
         return Err(SafetyError::NotDeclared { code: control.vcp });
     }
-    if !control.value_is_valid(value) {
+    if !control.value_is_valid(value) || (sub.is_some() && value > 0xFE) {
         return Err(SafetyError::InvalidValue {
             id: control.id,
             value,
@@ -118,14 +189,14 @@ pub fn check_write(
     }
     Ok(ValidatedWrite {
         code: control.vcp,
-        value,
+        value: sub.map_or(value, |s| (u16::from(s) << 8) | value),
     })
 }
 
 pub fn describe_allowed(control: &Control) -> String {
     match control.kind {
         ValueKind::Range { min, max } => format!("{min}..={max}"),
-        ValueKind::Choice { choices } => choices
+        ValueKind::Choice { choices } | ValueKind::SubCommand { choices, .. } => choices
             .iter()
             .map(|c| format!("{} ({})", c.label, c.raw))
             .collect::<Vec<_>>()

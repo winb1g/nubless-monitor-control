@@ -115,6 +115,18 @@ export async function toggleFeature(feature: Feature, on: boolean) {
   handleFeature(out);
 }
 
+/** Switch picture mode through the AI interlock, asking when the rules say so. */
+export async function pickPictureMode(label: string) {
+  const b = await api();
+  let out: FeatureOutcome | undefined = await guarded(() => b.pickPictureMode(label, false));
+  if (out?.kind === "confirm") {
+    const ok = await ask({ title: `Switch to ${label}?`, body: out.question, confirm: "Switch", cancel: "Not now" });
+    if (!ok) return;
+    out = await guarded(() => b.pickPictureMode(label, true));
+  }
+  handleFeature(out);
+}
+
 export async function simulatePbp(on: boolean) {
   handleFeature(await guarded(async () => (await api()).simulatePbp(on)));
 }

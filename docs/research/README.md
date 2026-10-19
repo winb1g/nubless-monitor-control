@@ -16,6 +16,7 @@ Interoperability research on **LG Switch** (v7.60), to build an **open-source, l
 | [`05-screen-settings-panel.md`](05-screen-settings-panel.md) | Control-by-control map of the panel we want to reproduce, with evidence level |
 | [`08-lg-opcode-and-enum-tables.md`](08-lg-opcode-and-enum-tables.md) | LG's own opcode table (211 entries) and value enums (response time, Adaptive-Sync, picture modes…) with numeric values |
 | [`06-method.md`](06-method.md) | How the findings were obtained (reproducible), and what we deliberately did not do |
+| [`09-ai-channel-and-picture-modes.md`](09-ai-channel-and-picture-modes.md) | LG's AI sub-command channel (VCP 0xA6), which picture modes allow AI, and picture-mode values on the wire |
 | [`07-roadmap.md`](07-roadmap.md) | Proposed architecture, phases, safety rules |
 | [`tools/`](tools/README.md) | Scripts to reproduce and to continue the mapping (read-only) |
 

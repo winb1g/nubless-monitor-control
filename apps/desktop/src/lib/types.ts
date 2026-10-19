@@ -30,6 +30,7 @@ export interface FeatureState {
   my_display_preset: boolean;
   pbp: boolean;
   hdr: boolean;
+  picture_mode_blocks_ai: boolean;
 }
 
 export type Availability = { state: "available" } | { state: "unavailable"; reason: { kind: string } };
@@ -43,7 +44,10 @@ export interface AppState {
   features: {
     state: FeatureState;
     availability: Record<string, Availability>;
-    mapped: boolean;
+    /** Feature id -> why it can't be switched on this connection. */
+    locks: Record<string, string>;
+    picture_mode: string | null;
+    ai_capable_modes: string[];
   };
   baseline: { saved: boolean; values: number; just_saved: boolean; error: string | null };
   labs: boolean;

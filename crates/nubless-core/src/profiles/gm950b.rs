@@ -39,40 +39,78 @@ const ADAPTIVE_SYNC: &[Choice] = &[
     },
 ];
 
-/// Tiles LG Switch shows; raw values are `E_PICTUREMODE_NAME` indices found in the
-/// supported-mode bitmasks. Whether VCP 0x15 takes these indices is NOT known yet.
+/// Tiles LG Switch shows. VCP 0x15 does NOT take LG's `E_PICTUREMODE_NAME` values:
+/// LG Switch sends the enum to its native service, which translates it. Raw
+/// values below were observed on a real unit (fw 3.05) while switching in LG
+/// Switch; tiles not observed yet carry a placeholder (0xFF00 | enum) that no
+/// reading can match, so they never show as current and are never written.
 const PICTURE_MODES: &[Choice] = &[
     Choice {
-        raw: 60,
+        raw: 65,
         label: "Personalized Picture",
     },
     Choice {
-        raw: 39,
+        raw: 45,
         label: "Gamer 1",
     },
     Choice {
-        raw: 40,
+        raw: 46,
         label: "Gamer 2",
     },
     Choice {
-        raw: 18,
+        raw: 0xFF12,
         label: "Calibration1",
     },
     Choice {
-        raw: 19,
+        raw: 0xFF13,
         label: "Calibration2",
     },
     Choice {
-        raw: 30,
+        raw: 0xFF1E,
         label: "Color Weakness",
     },
     Choice {
-        raw: 25,
+        raw: 0xFF19,
         label: "DCI-P3",
     },
     Choice {
-        raw: 43,
+        raw: 0xFF2B,
         label: "FPS",
+    },
+];
+
+/// Picture modes in which AI Scene Optimization and AI Picture Mode work (LG
+/// Switch's `PictureModeToAISupportedMap`: Personalized Picture, Custom, Gamer 1,
+/// Gamer 2, Max Brightness, FPS, RTS, Vivid). In other modes LG Switch turns AI
+/// off and the monitor refuses to switch while AI is on.
+pub const AI_CAPABLE_PICTURE_MODES: &[&str] =
+    &["Personalized Picture", "Gamer 1", "Gamer 2", "FPS"];
+
+const OFF_ON: &[Choice] = &[
+    Choice {
+        raw: 1,
+        label: "Off",
+    },
+    Choice {
+        raw: 2,
+        label: "On",
+    },
+];
+
+/// LG's enum names for AI Upscaling. Unconfirmed: a real unit reported 1 while
+/// LG Switch showed "Off".
+const UPSCALING: &[Choice] = &[
+    Choice {
+        raw: 1,
+        label: "Low",
+    },
+    Choice {
+        raw: 2,
+        label: "Middle",
+    },
+    Choice {
+        raw: 4,
+        label: "High",
     },
 ];
 
@@ -151,7 +189,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "picture-mode", label: "Picture Mode", vcp: 0x15, kind: ValueKind::Choice { choices: PICTURE_MODES },
         confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Supported list from bitmasks 0x4D/0x4E/0x4F matches all tiles. Current-value encoding unknown (reads 65 while UI shows Personalized Picture).",
+        note: "Supported list from bitmasks 0x4D/0x4E/0x4F matches all tiles. Raw values differ from LG's enum (LG's native service translates); observed Personalized 65, Gamer 1 45, Gamer 2 46. Other tiles not observed yet.",
     },
     Control {
         id: "color-temperature", label: "Color temperature", vcp: 0x69, kind: ValueKind::Info,
@@ -187,6 +225,25 @@ pub const CONTROLS: &[Control] = &[
         id: "hdr", label: "HDR", vcp: 0xE2, kind: ValueKind::Info,
         confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
         note: "LG HDR_VALUE reads 1; scale unknown. Read-only: HDR is driven by the PC.",
+    },
+    // ---- LG AI channel (VCP 0xA6 sub-commands, decoded from LG Switch) ------
+    Control {
+        id: "ai-scene-optimization", label: "AI Scene Optimization", vcp: 0xA6,
+        kind: ValueKind::SubCommand { sub: 2, choices: OFF_ON },
+        confidence: Strong, standard: false, writable: true, risk: Risk::None,
+        note: "Sub-command 2 (eSoC_AIMODE_ONOFF): 1 = off, 2 = on. LG Switch's own startup query answered 0x0202 while its toggle showed on. Only works in AI-capable picture modes.",
+    },
+    Control {
+        id: "ai-upscaling", label: "AI Upscaling", vcp: 0xA6,
+        kind: ValueKind::SubCommand { sub: 4, choices: UPSCALING },
+        confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
+        note: "Sub-command 4 (eSoC_AIMODE_UPSCALLING): LG names 1 = Low, 2 = Middle, 4 = High, but a real unit answered 1 while LG Switch showed Off. Unavailable while PBP/PIP is on.",
+    },
+    Control {
+        id: "ai-sound", label: "AI Sound", vcp: 0xA6,
+        kind: ValueKind::SubCommand { sub: 6, choices: OFF_ON },
+        confidence: Strong, standard: false, writable: true, risk: Risk::None,
+        note: "Sub-command 6 (eAISOUND_ONOFF): 1 = off, 2 = on. LG Switch's startup query answered 0x0601 while its toggle showed off.",
     },
     // ---- Sound / input ----------------------------------------------------
     Control {
@@ -246,14 +303,32 @@ mod tests {
     #[test]
     fn ids_and_codes_are_unique() {
         let ids: HashSet<_> = CONTROLS.iter().map(|c| c.id).collect();
-        let codes: HashSet<_> = CONTROLS.iter().map(|c| c.vcp).collect();
+        let codes: HashSet<_> = CONTROLS
+            .iter()
+            .map(|c| match c.kind {
+                ValueKind::SubCommand { sub, .. } => (c.vcp, Some(sub)),
+                _ => (c.vcp, None),
+            })
+            .collect();
         assert_eq!(ids.len(), CONTROLS.len());
-        assert_eq!(codes.len(), CONTROLS.len());
+        assert_eq!(
+            codes.len(),
+            CONTROLS.len(),
+            "only 0xA6 sub-commands may share a code"
+        );
     }
 
     #[test]
     fn no_writable_control_touches_the_deny_list() {
         for c in CONTROLS.iter().filter(|c| c.writable) {
+            if let ValueKind::SubCommand { sub, .. } = c.kind {
+                assert!(
+                    safety::AI_SUBCOMMANDS.contains(&(sub, true)),
+                    "{} sub-command {sub} not allowed",
+                    c.id
+                );
+                continue;
+            }
             assert!(
                 safety::deny_reason(c.vcp).is_none(),
                 "{} uses a denied code",
@@ -265,7 +340,11 @@ mod tests {
     #[test]
     fn every_writable_control_is_declared_by_the_monitor() {
         let caps = Capabilities::parse(CAPABILITIES_SAMPLE).unwrap();
-        for c in CONTROLS.iter().filter(|c| c.writable) {
+        // 0xA6 sub-commands are answered but not declared; see safety::check_write.
+        for c in CONTROLS
+            .iter()
+            .filter(|c| c.writable && !matches!(c.kind, ValueKind::SubCommand { .. }))
+        {
             assert!(
                 caps.declares(c.vcp),
                 "{} (0x{:02X}) not declared",

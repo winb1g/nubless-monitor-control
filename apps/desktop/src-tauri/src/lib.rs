@@ -106,6 +106,25 @@ async fn simulate_pbp(
 }
 
 #[tauri::command]
+async fn pick_picture_mode(
+    app: AppHandle,
+    b: State<'_, Backend>,
+    label: String,
+    confirmed: bool,
+) -> Result<FeatureOutcome, String> {
+    let out = ask(&b, |reply| Req::PictureMode {
+        label,
+        confirmed,
+        reply,
+    })
+    .await?;
+    if let FeatureOutcome::Applied { state, .. } | FeatureOutcome::Blocked { state, .. } = &out {
+        broadcast(&app, state);
+    }
+    Ok(out)
+}
+
+#[tauri::command]
 async fn undo(app: AppHandle, b: State<'_, Backend>) -> Result<Outcome, String> {
     let out = ask(&b, Req::Undo).await??;
     broadcast(&app, &out.state);
@@ -200,6 +219,7 @@ pub fn run() {
             set_control,
             toggle_feature,
             simulate_pbp,
+            pick_picture_mode,
             undo,
             reset_original,
             open_main,

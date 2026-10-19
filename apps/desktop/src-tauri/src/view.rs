@@ -44,8 +44,12 @@ pub struct ControlView {
 pub struct FeaturesView {
     pub state: FeatureState,
     pub availability: Availabilities,
-    /// False until the AI features' codes are mapped on real hardware.
-    pub mapped: bool,
+    /// Feature id -> why it can't be switched on this connection.
+    pub locks: std::collections::BTreeMap<&'static str, String>,
+    /// Current picture mode label, when known.
+    pub picture_mode: Option<String>,
+    /// Picture modes in which the AI features work.
+    pub ai_capable_modes: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -78,7 +82,9 @@ pub fn group_of(id: &str) -> &'static str {
         "brightness" | "contrast" | "black-stabilizer" | "color-temperature" | "red-gain"
         | "green-gain" | "blue-gain" => "picture",
         "response-time" | "adaptive-sync" | "motion-blur" | "aspect-ratio" => "game",
-        "volume" | "mute" => "sound",
+        "volume" | "mute" | "ai-sound" => "sound",
+        "ai-scene-optimization" => "smart",
+        "ai-upscaling" => "picture",
         _ => "info",
     }
 }
@@ -112,7 +118,7 @@ pub fn lock_reason(
 pub fn view_control(c: &'static Control, value: Option<u16>, policy: WritePolicy) -> ControlView {
     let (kind, min, max, choices) = match c.kind {
         ValueKind::Range { min, max } => ("range", min, max, vec![]),
-        ValueKind::Choice { choices } => (
+        ValueKind::Choice { choices } | ValueKind::SubCommand { choices, .. } => (
             "choice",
             0,
             0,
@@ -126,7 +132,11 @@ pub fn view_control(c: &'static Control, value: Option<u16>, policy: WritePolicy
         ),
         ValueKind::Info => ("info", 0, 0, vec![]),
     };
+    // An unconfirmed sub-command encoding shows the raw value, not a guessed label.
+    let guessed =
+        matches!(c.kind, ValueKind::SubCommand { .. }) && c.confidence < Confidence::Strong;
     let display = value.map(|v| match (c.choice_label(v), c.vcp) {
+        (Some(_), _) if guessed => format!("raw {v} (not mapped yet)"),
         (Some(l), _) => l.to_string(),
         (None, 0xC9) => format!("{}.{:02X}", v >> 8, v & 0xFF),
         (None, 0xC0) => format!("{v} h"),

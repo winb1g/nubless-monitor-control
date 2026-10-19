@@ -4,7 +4,7 @@
     Sparkles, WandSparkles, AppWindow, PictureInPicture2, RefreshCw, TriangleAlert, FlaskConical,
     User, Gamepad2, Crosshair, Ruler, Eye, Clapperboard, Image, Search, MonitorSmartphone,
   } from "@lucide/svelte";
-  import { ui, toggleFeature, simulatePbp, rescan, useDemo, greeting, setControl } from "../store.svelte";
+  import { ui, toggleFeature, simulatePbp, rescan, useDemo, greeting, setControl, pickPictureMode } from "../store.svelte";
   import type { ControlView, Feature, FeatureState } from "../types";
   import MonitorArt from "../components/MonitorArt.svelte";
   import Slider from "../components/Slider.svelte";
@@ -27,13 +27,21 @@
     Calibration1: Ruler, Calibration2: Ruler, "Color Weakness": Eye, "DCI-P3": Clapperboard,
   };
 
-  const lockedFeature = $derived(
-    s && !s.features.mapped
-      ? { reason: "Not mapped yet. Try it with the demo monitor to see how it will work.", unlock: null }
-      : null,
-  );
   const pbpReason = "Not available while PBP/PIP is on. Turn PBP/PIP off first.";
   const mute = $derived(byId["mute"]);
+  const aiSound = $derived(byId["ai-sound"]);
+
+  /** Why a smart feature can't be turned on right now, if it can't. */
+  function featureLock(id: Feature, on: boolean): { reason: string; unlock: "labs" | null } | null {
+    if (!s) return null;
+    const lock = s.features.locks[id];
+    if (lock) return { reason: lock, unlock: lock.includes("Labs") ? "labs" : null };
+    if (on) return null;
+    if (s.features.state.pbp) return { reason: pbpReason, unlock: null };
+    if (s.features.state.picture_mode_blocks_ai && id !== "my-display-preset")
+      return { reason: `Not available in ${s.features.picture_mode ?? "this picture mode"}. Switch to Personalized Picture, Gamer 1, Gamer 2 or FPS first.`, unlock: null };
+    return null;
+  }
 </script>
 
 <div class="page">
@@ -110,14 +118,12 @@
         <div class="title"><h2>Smart features</h2><span class="hint">Only one can be on at a time</span></div>
         {#each smart as f}
           {@const on = s.features.state[f.key]}
-          {@const blocked = s.features.state.pbp && !on}
+          {@const lock = featureLock(f.id, on)}
           <div class="feature" class:on>
             <span class="ficon"><f.icon size={18} /></span>
             <div class="ftext"><b>{f.title}</b><span class="muted small">{f.body}</span></div>
-            {#if lockedFeature}
-              <Lock control={lockedFeature} />
-            {:else if blocked}
-              <Lock control={{ reason: pbpReason, unlock: null }} />
+            {#if lock}
+              <Lock control={lock} />
             {:else}
               <Toggle checked={on} label={f.title} onchange={(v) => toggleFeature(f.id, v)} />
             {/if}
@@ -136,13 +142,15 @@
       {#if byId["picture-mode"]}
         {@const pm = byId["picture-mode"]}
         <section class="card" in:fly={{ y: 14, duration: 320, delay: 40 }}>
-          <div class="title"><h2>Picture mode</h2>{#if !pm.enabled}<Lock control={pm} />{/if}</div>
+          <div class="title"><h2>Picture mode</h2>{#if !s.demo && !pm.enabled}<Lock control={pm} />{:else}<span class="hint"><Sparkles size={12} /> works with AI features</span>{/if}</div>
           <div class="tiles">
             {#each pm.choices as c (c.raw)}
               {@const Icon = tileIcons[c.label] ?? Image}
-              <button class="tile" class:active={pm.value === c.raw} disabled={!pm.enabled}>
+              {@const current = (s.features.picture_mode ?? null) === c.label || pm.value === c.raw}
+              <button class="tile" class:active={current} disabled={!s.demo && !pm.enabled} onclick={() => !current && pickPictureMode(c.label)}>
                 <span class="ticon"><Icon size={20} /></span>
                 <span>{c.label}</span>
+                {#if s.features.ai_capable_modes.includes(c.label)}<span class="ai" title="Works with AI Scene Optimization"><Sparkles size={11} /></span>{/if}
               </button>
             {/each}
           </div>
@@ -168,6 +176,14 @@
       <section class="card" in:fly={{ y: 14, duration: 320, delay: 160 }}>
         <div class="title"><h2>Sound</h2></div>
         {#if byId["volume"]}<Slider control={byId["volume"]} />{/if}
+        {#if aiSound}
+          <div class="inforow">
+            <span>AI Sound</span>
+            {#if aiSound.enabled}
+              <Toggle checked={aiSound.value === 2} label="AI Sound" onchange={(v) => setControl("ai-sound", v ? 2 : 1, { before: aiSound.value })} />
+            {:else}<Lock control={aiSound} />{/if}
+          </div>
+        {/if}
         {#if mute}
           <div class="inforow">
             <span>Mute speakers</span>
@@ -434,6 +450,16 @@
   .tile.active {
     color: var(--text);
     box-shadow: 0 0 0 2px var(--accent);
+  }
+  .tile {
+    position: relative;
+  }
+  .ai {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    color: var(--accent);
+    opacity: 0.8;
   }
   .tile:disabled {
     cursor: default;

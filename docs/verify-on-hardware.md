@@ -13,9 +13,11 @@ Each item needs a person with the monitor. Record results with the test card in 
 
 ## Encodings still unknown
 
-- [ ] **Picture mode** `0x15` reads 65 while LG Switch shows *Personalized Picture*. Read `0x15` with each tile selected (in LG Switch or the OSD).
+- [ ] **Picture mode** `0x15`: the value is the monitor's own, not LG's enum (see [research 09](research/09-ai-channel-and-picture-modes.md)). Known: Personalized 65, Gamer 1 45, Gamer 2 46. With AI Scene Optimization **off**, switch to Calibration1, Calibration2, Color Weakness, DCI-P3 and FPS in LG Switch while `nubless probe watch` runs.
 - [ ] **Color temperature** `0x69`/`0x6A` and the *Manual* slider (reads 0 in LG Switch). Which code moves with the slider?
-- [ ] **AI Scene Optimization**, **AI Sound**, **AI Upscaling**: no opcode known. Toggle each in the OSD and run `vcp-diff`.
+- [x] **AI Scene Optimization**, **AI Sound**, **AI Upscaling**: decoded from LG Switch as sub-commands 2, 6 and 4 on VCP 0xA6 ([research 09](research/09-ai-channel-and-picture-modes.md)).
+- [ ] Turn on Labs and switch AI Scene Optimization and AI Sound from nubless once each, checking the OSD (first writes on 0xA6).
+- [ ] AI Upscaling: which value is Off / Low / High? (A real unit reported 1 while LG Switch showed Off.)
 - [ ] **Dual-Mode** `0xB1`: what does *Conversion* send? (Read-only until understood.)
 
 ## Recovery questions (dead-end checks)
@@ -26,5 +28,5 @@ Each item needs a person with the monitor. Record results with the test card in 
 ## LG Switch behaviour
 
 - [ ] Does LG Switch ask its AI Picture Mode / My Display Preset question **even when nothing would be disabled**?
-- [ ] With AI Scene Optimization **on**, which Picture Settings controls are greyed out (Brightness? Contrast? the picture-mode tiles)?
-- [ ] In which picture modes is the AI Scene Optimization toggle unavailable?
+- [x] With AI Scene Optimization on, which controls are greyed out? None of the sliders on this monitor (only webOS monitors use those flags); non-AI picture modes are refused by the monitor.
+- [x] In which picture modes is AI unavailable? Everything except Personalized Picture, Custom, Gamer 1, Gamer 2, Max Brightness, FPS, RTS and Vivid.
