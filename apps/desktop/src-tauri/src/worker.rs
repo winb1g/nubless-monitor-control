@@ -167,6 +167,11 @@ impl Worker {
         }
     }
 
+    /// The current policy lets nubless write this control.
+    fn allows(&self, id: &str) -> bool {
+        PROFILE.control(id).is_some_and(|c| self.policy().allows(c))
+    }
+
     fn run(&mut self, rx: Receiver<Req>) {
         while let Ok(first) = rx.recv() {
             let mut batch = vec![first];
@@ -455,7 +460,7 @@ impl Worker {
             return None;
         }
         match feature {
-            Feature::AiSceneOptimization if !self.labs => Some(
+            Feature::AiSceneOptimization if !self.allows("ai-scene-optimization") => Some(
                 "Turn on Labs to switch AI Scene Optimization from nubless. It's decoded from LG Switch but not yet tested on hardware."
                     .into(),
             ),
@@ -534,7 +539,7 @@ impl Worker {
                 state: self.state(),
             };
         };
-        if !demo && !self.labs {
+        if !demo && !self.allows("picture-mode") {
             return FeatureOutcome::Blocked {
                 reason: "Turn on Labs to switch picture modes from nubless. Every mode's value is known, but nubless hasn't switched one on real hardware yet.".into(),
                 state: self.state(),
@@ -831,17 +836,21 @@ mod tests {
     }
 
     #[test]
-    fn hardware_ai_scene_needs_labs() {
+    fn hardware_ai_scene_works_without_labs() {
         let mut w = hardware_worker("hw-safe", false);
-        assert!(matches!(
-            w.feature(Feature::AiSceneOptimization, false, false),
-            FeatureOutcome::Blocked { .. }
-        ));
-        assert!(w
+        assert!(
+            w.state().features.state.ai_scene_optimization,
+            "read without Labs"
+        );
+        assert!(!w
             .state()
             .features
             .locks
             .contains_key("ai-scene-optimization"));
+        assert!(matches!(
+            w.feature(Feature::AiSceneOptimization, false, false),
+            FeatureOutcome::Applied { .. }
+        ));
     }
 
     #[test]
@@ -928,13 +937,17 @@ mod tests {
     }
 
     #[test]
-    fn hardware_picture_modes_need_labs() {
+    fn hardware_picture_modes_work_without_labs() {
         let mut w = hardware_worker("pm-safe", false);
         assert!(matches!(
             w.picture_mode("Gamer 1", false),
-            FeatureOutcome::Blocked { .. }
+            FeatureOutcome::Applied { .. }
         ));
-        assert_eq!(value(&mut w, "picture-mode"), Some(65));
+        assert_eq!(value(&mut w, "picture-mode"), Some(45));
+        assert!(
+            w.set("response-time", 1).is_err(),
+            "unconfirmed controls still need Labs"
+        );
     }
 
     #[test]

@@ -618,16 +618,18 @@ mod ai_channel_tests {
     }
 
     #[test]
-    fn reading_the_ai_channel_needs_labs() {
+    fn unconfirmed_ai_sub_commands_need_labs_to_read() {
         let mut c = ctl(WritePolicy::Safe);
         assert!(matches!(
-            c.read("ai-scene-optimization"),
+            c.read("ai-upscaling"),
             Err(ControlError::Safety(SafetyError::NotConfident { .. }))
         ));
         assert!(
             c.transport.writes.is_empty(),
             "not even a query is sent without Labs"
         );
+        assert_eq!(c.read("ai-scene-optimization").unwrap().current, 2);
+        c.write("ai-sound", 2).unwrap();
     }
 
     #[test]

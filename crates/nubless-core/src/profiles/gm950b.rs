@@ -187,8 +187,8 @@ pub const CONTROLS: &[Control] = &[
     },
     Control {
         id: "picture-mode", label: "Picture Mode", vcp: 0x15, kind: ValueKind::Choice { choices: PICTURE_MODES },
-        confidence: ReadConfirmed, standard: false, writable: true, risk: Risk::Visibility,
-        note: "All eight tiles read on the wire while switching in LG Switch. LG-private, so writing needs Labs until a nubless write is confirmed. Switching goes through the AI interlock: non-AI modes need AI Scene Optimization off.",
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::Visibility,
+        note: "All eight tiles read on the wire while switching in LG Switch. Switching from nubless verified on the OSD, including Calibration1 through the AI interlock (fw 3.05, 2026-10-18). Non-AI modes need AI Scene Optimization off.",
     },
     Control {
         id: "color-temperature", label: "Color temperature", vcp: 0x69, kind: ValueKind::Info,
@@ -229,8 +229,8 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "ai-scene-optimization", label: "AI Scene Optimization", vcp: 0xA6,
         kind: ValueKind::SubCommand { sub: 2, choices: OFF_ON },
-        confidence: Strong, standard: false, writable: true, risk: Risk::None,
-        note: "Sub-command 2 (eSoC_AIMODE_ONOFF): 1 = off, 2 = on. LG Switch's own startup query answered 0x0202 while its toggle showed on. Only works in AI-capable picture modes.",
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::None,
+        note: "Sub-command 2 (eSoC_AIMODE_ONOFF): 1 = off, 2 = on. LG Switch's own startup query answered 0x0202 while its toggle showed on. Toggling from nubless verified on the OSD (fw 3.05, 2026-10-18). Only works in AI-capable picture modes.",
     },
     Control {
         id: "ai-upscaling", label: "AI Upscaling", vcp: 0xA6,
@@ -241,8 +241,8 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "ai-sound", label: "AI Sound", vcp: 0xA6,
         kind: ValueKind::SubCommand { sub: 6, choices: OFF_ON },
-        confidence: Strong, standard: false, writable: true, risk: Risk::None,
-        note: "Sub-command 6 (eAISOUND_ONOFF): 1 = off, 2 = on. LG Switch's startup query answered 0x0601 while its toggle showed off.",
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::None,
+        note: "Sub-command 6 (eAISOUND_ONOFF): 1 = off, 2 = on. LG Switch's startup query answered 0x0601 while its toggle showed off. Toggling from nubless verified on the OSD (fw 3.05, 2026-10-18).",
     },
     // ---- Sound / input ----------------------------------------------------
     Control {

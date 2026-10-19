@@ -6,7 +6,7 @@ nubless is an open-source, cross-platform replacement for the on-screen menu (OS
 
 Inspired by [OpenLogi](https://github.com/AprilNEA/OpenLogi) (Logitech), [MonitorControl](https://github.com/MonitorControl/MonitorControl) and [BetterDisplay](https://github.com/waydabber/BetterDisplay).
 
-> **Status: early.** The core, safety guard and CLI work, and real-hardware reads are verified on a 27GM950B, and the first write (brightness, then undo) round-tripped through the OSD. Other writes wait for the tests in [`docs/verify-on-hardware.md`](docs/verify-on-hardware.md). Not affiliated with LG Electronics.
+> **Status: early.** The core, safety guard and CLI work, and real-hardware reads are verified on a 27GM950B, and brightness, picture mode, AI Scene Optimization and AI Sound writes are verified on the OSD. Other writes wait for the tests in [`docs/verify-on-hardware.md`](docs/verify-on-hardware.md). Not affiliated with LG Electronics.
 
 ## Two promises
 
@@ -22,8 +22,8 @@ How both are enforced, in code and tests: [`SAFETY.md`](SAFETY.md).
 | Brightness, Contrast | `0x10`, `0x12` | read ✔ · write: safe policy (standard MCCS) |
 | Black Stabilizer, Response Time, Adaptive-Sync/VRR | `0xF9`, `0xF7`, `0xF8` | read ✔ · write: `--experimental` until round-trip confirmed |
 | Volume, Mute | `0x62`, `0x8D` | read ✔ · write: `--experimental` |
-| Picture mode (all 8 tiles) | `0x15` | read ✔ · write: Labs, through the AI interlock |
-| AI Scene Optimization, AI Sound | `0xA6` sub-commands 2, 6 | decoded from LG Switch · Labs |
+| Picture mode (all 8 tiles) | `0x15` | read ✔ · write ✔ (OSD-verified), through the AI interlock |
+| AI Scene Optimization, AI Sound | `0xA6` sub-commands 2, 6 | read ✔ · write ✔ (OSD-verified) |
 | Color temperature, RGB gains, aspect ratio, motion blur, AI Upscaling | various | read ✔ · not writable yet (encoding unconfirmed) |
 | Input | `0x60` | read ✔ · **blocked**: switching input can cut the DDC link (dead end) |
 | Firmware level, usage hours, Dual-Mode state | `0xC9`, `0xC0`, `0xB1` | read-only |

@@ -259,10 +259,9 @@ mod tests {
     }
 
     #[test]
-    fn picture_mode_needs_labs_and_a_known_tile() {
+    fn picture_mode_needs_a_known_tile() {
         let c = PROFILE.control("picture-mode").unwrap();
-        assert!(check_write(c, 18, &caps(), WritePolicy::Safe).is_err());
-        assert!(check_write(c, 18, &caps(), WritePolicy::Experimental).is_ok());
+        assert!(check_write(c, 18, &caps(), WritePolicy::Safe).is_ok());
         assert!(
             check_write(c, 60, &caps(), WritePolicy::Experimental).is_err(),
             "LG enum values are not wire values"
