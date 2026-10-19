@@ -1,0 +1,14 @@
+[package]
+name = "nubless-hw"
+description = "Real DDC/CI transport for nubless (Windows dxva2, Linux i2c-dev, macOS) via ddc-hi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+nubless-core.workspace = true
+# NVAPI is left out on purpose: it exposes the same monitor a second time over raw
+# I2C, and two paths to one monitor defeat the one-message-at-a-time pacing.
+ddc-hi = { version = "0.4.1", default-features = false, features = ["ddc-winapi", "ddc-i2c", "ddc-macos"] }
