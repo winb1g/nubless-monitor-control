@@ -20,8 +20,6 @@ Interoperability research on **LG Switch** (v7.60), to build an **open-source, l
 | [`07-roadmap.md`](07-roadmap.md) | Proposed architecture, phases, safety rules |
 | [`tools/`](tools/README.md) | Scripts to reproduce and to continue the mapping (read-only) |
 
-Companion project: [`lg-firmware-watch`](https://lg-firmware-watch.vercel.app/) (site that tracks 27GM950B firmware).
-
 ## Ground rules
 
 - **Read-only first.** The mapping is done by *snapshotting* the monitor's VCP values before/after you change a setting in LG's own UI (`tools/vcp-diff.ps1`). We never write to an unmapped code.
