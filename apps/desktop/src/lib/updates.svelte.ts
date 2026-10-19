@@ -25,7 +25,7 @@ export async function checkForUpdates() {
   try {
     if (!inTauri) {
       await new Promise((r) => setTimeout(r, 900));
-      pending = { version: "0.2.0", body: "Preview of the update flow. Picture mode tiles now switch modes.", preview: true };
+      pending = { version: "0.2.0", body: "Preview of the update flow. The tray now steps through picture modes.", preview: true };
     } else {
       const { check } = await import("@tauri-apps/plugin-updater");
       pending = await check();

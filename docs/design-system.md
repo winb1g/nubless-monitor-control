@@ -4,87 +4,119 @@ The desktop UI (`apps/desktop`) has one source of truth for how things look and 
 
 | What | Where |
 |---|---|
-| Tokens: color, shadow, radius, spacing, type, motion | `src/app.css` (`:root`, plus two dark-theme blocks) |
-| Shared classes: `.page`, `.subtitle`, `.card`, `.btn`, `.muted`, `.faint`, `.small`, `.skeleton`, `.busy-ring` | `src/app.css` |
+| Tokens: color, radius, spacing, type, motion | `src/app.css` (`:root`, plus two dark-theme blocks) |
+| Shared classes: `.page`, `.page-head`, `.subtitle`, `.btn`, `.link`, `.tag`, `.eyebrow`, `.mono`, `.muted`, `.small`, `.skeleton`, `.hatch`, `.led` | `src/app.css` |
 | Svelte transition presets | `src/lib/motion.ts` (durations read from `app.css`) |
-| Building blocks: `Card`, `IconBadge`, `Hint`, `Toggle`, `Slider`, `Segmented`, `Lock` | `src/lib/components/` |
+| Building blocks: `Section`, `Item`, `Toggle`, `Slider`, `Segmented`, `ModePicker`, `Lock`, `Hint`, `Logo`, `MonitorArt` | `src/lib/components/` |
+| How picture modes are named and grouped | `src/lib/modes.ts` |
+| Every component in every state, light and dark | the design kit: `npm run dev`, then open `/#/kit` |
+| Enforcement | `node scripts/lint-tokens.mjs` (`npm run lint:tokens`), run in CI |
 
-Rule of thumb: a component's `<style>` uses tokens for every color, shadow, radius, font size and duration. Spacing between things uses the `--space-*` scale; padding that shapes a single control (a chip's `3px 9px`) can stay with that control. Decorative loops (the monitor's screen sweep, the pulsing status dot) keep their own durations.
+The look is flat and typographic: no cards, fills or shadows around content. Structure comes from 2px ink rules, hairlines, and type. Rule of thumb: a component's `<style>` uses tokens for every color, radius, font, size and duration. The lint fails on raw hex or `rgb()` colors, gradients, shadows, literal fonts, radii and durations. A line that truly needs a literal (a drawing, say) can end with `lint-tokens: allow`.
 
-## Tokens
+## Color
 
-**Color.** Surfaces `--bg`, `--panel`, `--panel-2`; lines `--line`, `--line-strong`; text `--text`, `--text-2` (secondary), `--text-3` (faint). Brand: `--brand-1`/`--brand-2` make `--grad` (diagonal fills) and `--grad-x` (sideways fills such as the slider track); `--accent`, `--accent-ink` (accent text), `--accent-soft` (accent wash), `--on-accent` (text on the gradient). Status pairs: `--mint`/`--mint-soft`, `--sun`/`--sun-soft`, `--coral`/`--coral-soft`. Toasts sit on `--inverse` with `--inverse-*` colors in both themes. Also `--knob`, `--scrim`.
+Two jobs, and only two:
 
-The dark theme redefines only what changes. Add a new color to `:root` and, if it should differ in dark mode, to **both** dark blocks (the media query and `[data-theme="dark"]`).
+- **Ink** is text, every control outline (2px), and "selected" (an ink fill with ground-colored text).
+- **Signal** (lime) is "on" and "live": a switch that is on, the Simulated LED, the Update button, the cursor block in the logo. It is always a fill, and on the light ground always inside an ink outline.
 
-**Shadow.** `--shadow-sm` (hairline lift), `--shadow` (cards), `--shadow-lg` (dialogs, popovers), `--shadow-popover` (the tray), `--shadow-knob` (thumbs). Colored glow under gradient fills: `--glow-sm`, `--glow`, `--glow-lg`, all built from `--glow-rgb`.
+| Token | Light | Dark | For |
+|---|---|---|---|
+| `--ground` | `#E4E4DF` | `#121210` | The page |
+| `--wash` | `#D8D8D2` | `#1D1D1A` | Hover and pressed |
+| `--ink` | `#0E0E0E` | `#ECECE6` | Text, outlines, selected fills |
+| `--dim` | `#55554F` | `#A3A39B` | Secondary text |
+| `--rule` | `#A9A9A2` | `#3A3A36` | Dividers. Decoration only; a control's edge is always ink |
+| `--signal` | `#C6F135` | `#C6F135` | On and live, as a fill |
+| `--sel-mark` | `#C6F135` | `#121210` | AI tags and markers sitting on an ink fill |
+| `--ok` `--warn` `--err` | `#2F6B2F` `#9A4A06` `#B3261E` | `#7BD88F` `#FFB000` `#FF8A6B` | Status text and markers, never fills |
 
-**Radius.** `--r-xs` 8 · `--r-sm` 10 · `--r-md` 12 (buttons, nav) · `--r-lg` 14 (popovers, toasts, highlighted rows) · `--r-xl` 16 (banners, tiles) · `--r-2xl` 22 (cards, dialogs, tray) · `--r-full` (pills). Icon badges compute theirs from their size.
+`--ink-hover` and `--signal-hover` are the hovered fills, `--on-signal` is the text color on signal (always `#0E0E0E`), `--toast-*` and `--scrim` are for toasts and dialog backdrops.
 
-**Spacing.** A 4px grid: `--space-1` 4 · `-2` 8 · `-3` 12 · `-4` 16 · `-5` 20 · `-6` 24 · `-8` 32 · `-10` 40. `--page-padding` is the padding of every page; cards are `--space-5` inside and `--space-4` apart.
+Contrast (WCAG): ink on ground 15.1:1 light / 15.8:1 dark, dim 5.9:1 / 7.4:1, the status colors 4.9–5.1:1 light / 8.1–10.8:1 dark, ink on signal 14.7:1. **Signal on the light ground is 1.03:1**, which is why it is never text, a line or a lone shape there. In dark it is 14.3:1 and may also be text.
 
-**Type.** `--fs-2xs` 11 · `--fs-xs` 12 (hints, tags, chips) · `--fs-sm` 12.5 (`.small`) · `--fs-md` 13 (compact labels) · `--fs-base` 14 (body) · `--fs-lg` 15 (`h2`) · `--fs-xl` 17 · `--fs-2xl` 20 · `--fs-3xl` 26 (`h1`) · `--fs-4xl` 32. Weights are used directly: 500 body emphasis, 550 controls, 600 titles, 650–700 headings.
+The dark theme redefines only what changes. Add a color to `:root` and, if it should differ in dark, to **both** dark blocks (the media query and `[data-theme="dark"]`). The lint fails if the two blocks drift apart.
 
-**Motion.**
+## Shape, spacing, type
+
+**Radius.** `--r-sm` 2px (every control) · `--r-md` 4px (dialogs, popovers) · `--r-lg` 6px (the tray frame). Corners are almost square on purpose.
+
+**Spacing.** A 4px grid: `--space-1` 4 … `--space-10` 40. `--hit` (44px) is the minimum size of anything you click, even when it looks smaller (the stepper's chevrons and the slider's − and + are 18px glyphs with invisible padding).
+
+**Type.** Archivo (`--font`) for words, JetBrains Mono (`--font-mono`) for numbers, keys, labels and anything that reads as an instrument. Both are bundled (`@fontsource-variable`), because the Tauri CSP only allows `font-src 'self'`. Sizes: `--fs-2xs` 10 (tags) · `-xs` 11 (mono labels) · `-sm` 13 · `-md` 14 · `-base` 15 · `-lg` 17 · `-xl` 20 (row titles) · `-2xl` 22 (section titles) · `-3xl` 28 (readouts) · `-4xl` 44 (page titles). Headings are weight 800; the `.eyebrow` class is the small uppercase mono label.
+
+## Motion
+
+One curve, `--ease` (`cubic-bezier(0.2, 0, 0, 1)`: fast out, settles). No spring, no overshoot, no hover lift, no float, no pulse.
 
 | Token | Value | For |
 |---|---|---|
-| `--instant` | 60ms | getting out of the way (a page leaving) |
-| `--fast` | 140ms | hover, press, color, small fades |
-| `--base` | 240ms | state changes, things arriving |
-| `--slow` | 380ms | larger moves: sliding pills, cards rising |
-| `--spin` | 0.8s | one turn of any busy indicator |
-| `--ease` | | settles; the default |
-| `--spring` | | overshoots a little; knobs, pills, press feedback |
+| `--instant` | 0ms | Numerals and readouts: they change at once |
+| `--fast` | 100ms | Hover, press, switch, chip, a toast leaving |
+| `--base` | 160ms | Fills (a hotkey moving a slider), a toast or section arriving |
+| `--slow` | 260ms | A dialog arriving |
+| `--hatch` | 600ms | One step of the busy bar |
+| `--blink` | 1s | The Simulated LED, in steps |
+| `--undo-window` | 5s | The timer line under a toast with Undo (matches `store.svelte.ts`) |
 
-`prefers-reduced-motion` turns all of it off: `app.css` shortens CSS animations and transitions, and every `motion.ts` preset returns a duration of 0.
+Two decorative loops exist and no others: the **hatch** bar (`.hatch`, ticks marching: anything waiting on the monitor) and the **LED** (`.led.blink`: only while the monitor is simulated; Connected is the same square, solid). `prefers-reduced-motion` turns all of it off: `app.css` shortens CSS animations and transitions, and every `motion.ts` preset returns 0.
 
 ## Motion presets (`lib/motion.ts`)
 
-Never write durations in a transition; pick a preset. Each one reads its duration token when the transition starts, so retuning `app.css` retunes these too.
+Never write durations in a transition; pick a preset. Each reads its duration token when the transition starts, so retuning `app.css` retunes these too.
 
 | Preset | Use with | When |
 |---|---|---|
-| `rise(i)` | `in:fly` | A card or section arriving with its siblings; `i` staggers it. `Card` does this for you. |
-| `hint` | `in:fly` | A small inline note dropping in beside a heading (the loading `Hint` uses it). |
-| `pageIn` / `pageOut` | `in:fly` / `out:fade` | Switching pages in the main window. |
+| `rise` | `in:fly` | A section, row or page block arriving. `Section` and `Item` do this for you. |
+| `hint` | `in:fly` | A small inline note dropping in beside a heading (the loading `Hint`). |
+| `pageIn` / `pageOut` | `in:fly` / `out:fade` | Switching pages: the new one rises, the old one leaves at once. |
 | `popover` | `in:fly` | The tray popover opening. |
 | `toastIn` / `toastOut` / `toastReflow` | `in:fly` / `out:fly` / `animate:flip` | Toasts arriving, leaving and re-stacking. |
-| `pop` | `in:scale` / `transition:scale` | Something that pops into place: dialogs, a status badge changing. |
+| `dialogIn` | `in:fly` | A dialog over its scrim. |
 | `fadeQuick` | `transition:fade` | Scrims and dots appearing and disappearing. |
 
-Need a duration in script (a timeout that matches an animation)? Use `ms("fast")` from `motion.ts`. For a spinner, use `.busy-ring` or `IconBadge`'s `busy`/`spin`; don't add another keyframe.
+Need a duration in script (a timeout that matches an animation)? Use `ms("fast")` from `motion.ts`.
 
 ## Components
 
-- **`Card`**: the panel every page is built from. `title`, `hint` (plain small print) or `aside` (a snippet: a `Lock`, a loading `Hint`), `i` (stagger), `row` (icon, text, control in a line), `tint` (accent wash for the one card that leads a page), `loading` (dims the body and runs a sheen while values are re-read).
-- **`IconBadge`**: an icon on a rounded tile. `size`, `iconSize`, `tone` (`soft`, `raised`, `tint`, `brand` for on/selected, `neutral`, `mint`, `coral`), `round`, `glow`, `busy` (busy ring), `spin` (spin the icon). Corner radius and glow scale with `size`.
-- **`Hint`**: small print beside a heading; `loading` turns it into the accent "Loading…" hint.
-- **`Toggle`**, **`Slider`**, **`Segmented`**, **`Lock`**: controls, all with a pending or locked state.
+- **`Section`**: a titled block of a page. `title`, `hint` (plain small print) or `aside` (a snippet: a `Lock`, a loading `Hint`), `loading` (dims the body and runs the busy bar under the title while values are re-read).
+- **`Item`**: a settings row. `title`, `body` (a string or a snippet), `lead` (heavy rule, for the first row), `mark` (a snippet after the title: the Labs flask), the control as children, and `below` for full-width content such as the shortcut list.
+- **`Toggle`**: the ON/OFF key. `checked`, `pending` (shows "…" and the busy bar), `disabled`, `label`, `onchange`.
+- **`Slider`**: an outlined bar with a mono readout. `fine` puts − and + at the ends (±1 per press, hold to repeat; a run of presses counts as one change, so Undo goes back to where it started). `compact` is the tray's size. The readout inverts while you drag. The cursor over the bar is the pointer.
+- **`Segmented`**: a choice among a few named values; the selected one is an ink fill.
+- **`ModePicker`**: the picture mode. `layout="chips"` shows every mode at once, grouped by use (Everyday, Gaming, Color work, Accessibility; see `modes.ts`). `layout="stepper"` is `‹ name ›` with a position counter and ticks, and writes only the mode you stop on (400ms), so passing over modes never reaches the monitor. Both go through `pickPictureMode`, so the AI-feature interlock still asks first.
+- **`Lock`**: why a control can't be used. Labs controls get the flask and `LABS`; anything else gets the padlock and a dashed `LOCKED` tag. Click for the reason.
+- **`Hint`**, **`Logo`**, **`MonitorArt`** (the dashed "no signal" drawing for the empty state).
 
-## Adding a feature card
+Everything is also in the design kit (`/#/kit`) in every state.
 
-1. Put it in the page's grid or stack, after the cards already there, with the next `i`:
+## Adding a feature
+
+1. Put it in the page's grid or stack. For a titled block of controls use `Section`:
 
    ```svelte
-   <Card title="Color temperature" hint="Warmer at night" i={6}>
-     <Slider control={byId["color-temperature"]} />
-   </Card>
+   <Section title="Color temperature" hint="Warmer at night">
+     <Slider control={byId["color-temperature"]} fine />
+   </Section>
    ```
 
-2. For a settings-style card (icon, words, one control), use `row`. The text column is the page's own style (`.text` in `Settings.svelte`):
+2. For a settings-style row (words on the left, one control on the right), use `Item`:
 
    ```svelte
-   <Card row i={4}>
-     <IconBadge icon={Moon} size={38} />
-     <div class="text">
-       <h2>Night shift</h2>
-       <p class="muted">Warmer colors after sunset.</p>
-     </div>
+   <Item title="Night shift" body="Warmer colors after sunset.">
      <Toggle checked={on} label="Night shift" onchange={setNightShift} />
-   </Card>
+   </Item>
    ```
 
-3. If the card waits on the monitor, pass `loading` and show a `<Hint loading>` in its `aside`. If a control can't be used, show a `Lock` with the reason instead of hiding it.
-4. Style only what is new, with tokens. If you need a value the scale doesn't have, add a token to `app.css` (and to this page) rather than a one-off number.
-5. Check it in the browser preview (`cd apps/desktop && npm run dev`) in light and dark, and with reduced motion on.
+3. If the section waits on the monitor, pass `loading` and show a `<Hint loading>` in its `aside`. If a control can't be used, show a `Lock` with the reason instead of hiding it.
+4. Style only what is new, with tokens. If you need a value the scale doesn't have, add a token to `app.css` (and to this page) rather than a one-off number. Run `npm run lint:tokens`.
+5. Check it in the design kit and in the app (`cd apps/desktop && npm run dev`) in light and dark, and with reduced motion on. A picture mode the app doesn't know yet lands in an "Other" group until it is added to `modes.ts`.
+
+## Logo and icons
+
+The logo is the wordmark: "nubless" in Archivo 800 with a lime cursor block after it (the `Logo` component, sized by one number). The app icon (`src-tauri/icons`, `public/logo.svg`, `docs/assets/logo.svg`) is the cursor block on an ink tile. To change the icon, edit `public/logo.svg`, copy it to `docs/assets/logo.svg`, and run `npx tauri icon public/logo.svg` (keep the files already in `src-tauri/icons`).
+
+## README screenshots
+
+`npm run screenshots` (in `apps/desktop`) rebuilds `docs/assets/window-*.png` and `tray-*.png` from the demo monitor. It needs a Chromium: Playwright's (`npx playwright install chromium`) or any Chrome via `CHROME_PATH`. `?preview=empty` on the dev URL shows the no-monitor state.

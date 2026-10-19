@@ -1,10 +1,8 @@
 <script lang="ts">
   import { rise } from "../motion";
   import { fly } from "svelte/transition";
-  import { GitBranch, Bug, ShieldCheck, Heart, Scale } from "@lucide/svelte";
   import { ui } from "../store.svelte";
-  import Card from "../components/Card.svelte";
-  import IconBadge from "../components/IconBadge.svelte";
+  import Logo from "../components/Logo.svelte";
   import { inTauri } from "../api";
 
   const REPO = "https://github.com/winb1g/nubless-monitor-control";
@@ -15,46 +13,33 @@
   }
 
   const firmware = $derived(ui.state?.controls.find((c) => c.id === "firmware")?.display);
-  let taps = $state(0);
 </script>
 
 <div class="page">
-  <section class="hero" in:fly={rise()}>
-    <button class="logo" class:wiggle={taps > 0} onclick={() => taps++} onanimationend={() => (taps = 0)} aria-label="nubless logo">
-      <img src="/logo.svg" alt="" width="84" height="84" />
-    </button>
-    <h1>nubless</h1>
-    <p class="muted">Never touch the joystick nub again.</p>
-    <span class="ver">Version {ui.state?.version ?? "…"}{firmware ? ` · Monitor firmware ${firmware}` : ""}</span>
+  <section class="hero" in:fly={rise}>
+    <Logo size={56} />
+    <h1>Never touch the joystick nub again.</h1>
+    <span class="eyebrow">Version {ui.state?.version ?? "…"}{firmware ? ` · Monitor firmware ${firmware}` : ""}</span>
     <div class="actions">
-      <button class="btn primary" onclick={() => open(REPO)}><GitBranch size={16} />View on GitHub</button>
-      <button class="btn" onclick={() => open(`${REPO}/issues/new`)}><Bug size={16} />Report a problem</button>
+      <button class="btn primary" onclick={() => open(REPO)}>View on GitHub</button>
+      <button class="btn" onclick={() => open(`${REPO}/issues/new`)}>Report a problem</button>
     </div>
   </section>
 
   <div class="grid">
-    <Card i={1}>
-      <div class="stack">
-        <IconBadge icon={ShieldCheck} tone="tint" />
-        <h2>Our promise</h2>
-        <p class="muted">nubless will never brick your display, and you'll never have to reach for the monitor's menu to undo something it did. Values stay in safe ranges, features that don't mix stay apart, and your original settings are always one click away.</p>
-        <button class="link" onclick={() => open(`${REPO}/blob/main/SAFETY.md`)}>Read the safety contract</button>
-      </div>
-    </Card>
-    <Card i={2}>
-      <div class="stack">
-        <IconBadge icon={Heart} tone="tint" />
-        <h2>Thanks</h2>
-        <p class="muted">Talks to your monitor with ddc-hi. Built with Tauri and Svelte.</p>
-      </div>
-    </Card>
-    <Card i={3}>
-      <div class="stack">
-        <IconBadge icon={Scale} tone="tint" />
-        <h2>Open source</h2>
-        <p class="muted">Free software under the GNU GPL v3. Not affiliated with LG Electronics. LG, LG Switch and UltraGear are trademarks of LG Electronics.</p>
-      </div>
-    </Card>
+    <section in:fly={rise}>
+      <h2>Our promise</h2>
+      <p class="muted">nubless will never brick your display, and you'll never have to reach for the monitor's menu to undo something it did. Values stay in safe ranges, features that don't mix stay apart, and your original settings are always one click away.</p>
+      <button class="link" onclick={() => open(`${REPO}/blob/main/SAFETY.md`)}>Read the safety contract</button>
+    </section>
+    <section in:fly={rise}>
+      <h2>Thanks</h2>
+      <p class="muted">Talks to your monitor with ddc-hi. Built with Tauri and Svelte.</p>
+    </section>
+    <section in:fly={rise}>
+      <h2>Open source</h2>
+      <p class="muted">Free software under the GNU GPL v3. Not affiliated with LG Electronics. LG, LG Switch and UltraGear are trademarks of LG Electronics.</p>
+    </section>
   </div>
 </div>
 
@@ -65,65 +50,34 @@
   .hero {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 6px;
-    padding: var(--space-5) 0 30px;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: 52px 0 48px;
   }
-  .logo {
-    border: none;
-    background: none;
-    padding: 0;
-    margin-bottom: 10px;
-    filter: drop-shadow(0 14px 24px rgb(var(--glow-rgb) / 0.35));
-    transition: transform var(--base) var(--spring);
-  }
-  .logo:hover {
-    transform: translateY(-3px) rotate(-3deg);
-  }
-  .wiggle {
-    animation: wiggle 500ms var(--spring);
-  }
-  @keyframes wiggle {
-    25% {
-      transform: rotate(-10deg) scale(1.06);
-    }
-    60% {
-      transform: rotate(8deg) scale(1.04);
-    }
-  }
-  h1 {
-    font-size: var(--fs-4xl);
-  }
-  .ver {
-    font-size: var(--fs-sm);
-    color: var(--text-3);
-    background: var(--panel-2);
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--r-full);
-    margin-top: 6px;
+  .hero h1 {
+    max-width: 680px;
+    font-size: 40px;
+    margin-top: var(--space-3);
   }
   .actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
-    margin-top: 18px;
+    margin-top: var(--space-2);
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: var(--space-4);
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 32px 40px;
   }
-  .stack {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+  .grid section {
+    padding-top: 12px;
+    border-top: 2px solid var(--ink);
   }
-  .link {
-    align-self: flex-start;
-    border: none;
-    background: none;
-    padding: 0;
-    color: var(--accent-ink);
-    font-weight: 600;
+  .grid h2 {
+    margin-bottom: 6px;
+  }
+  .grid p {
+    margin-bottom: 6px;
   }
 </style>

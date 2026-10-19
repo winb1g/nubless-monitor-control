@@ -81,7 +81,8 @@ export function previewBackend() {
   const values: Record<string, number> = { "ai-sound": 1, brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
   const original = { ...values };
   let labs = false;
-  let connected = true;
+  // `?preview=empty` starts with no monitor found, to design the empty state.
+  let connected = new URLSearchParams(location.search).get("preview") !== "empty";
   let features: FeatureState = { ai_scene_optimization: false, ai_picture_mode: false, my_display_preset: false, pbp: false, hdr: false, picture_mode_blocks_ai: false };
   const AI_MODES = ["Personalized Picture", "Gamer 1", "Gamer 2", "FPS"];
   let picture = "Personalized Picture";
@@ -151,6 +152,8 @@ export function previewBackend() {
       features = { ...features, picture_mode_blocks_ai: !allows };
       await wait(500);
       picture = label;
+      const raw = controls(labs, values).find((x) => x.id === "picture-mode")?.choices.find((ch) => ch.label === label)?.raw;
+      if (raw !== undefined) values["picture-mode"] = raw;
       refreshing = true;
       setTimeout(() => { refreshing = false; emit(); }, 2500);
       return { kind: "applied", state: state(), notice: null };

@@ -1,18 +1,25 @@
 <script lang="ts">
+  // An outlined bar you drag, with its value as a mono readout. With `fine`,
+  // − and + sit at the bar's ends: ±1 per press, hold to repeat. `compact` is
+  // the tray's smaller version.
+  import { Minus, Plus } from "@lucide/svelte";
   import { setControl } from "../store.svelte";
   import { ms } from "../motion";
   import type { ControlView } from "../types";
   import Lock from "./Lock.svelte";
 
-  let { control, compact = false }: { control: ControlView; compact?: boolean } = $props();
+  let { control, compact = false, fine = false }: { control: ControlView; compact?: boolean; fine?: boolean } = $props();
 
   let local = $state<number | null>(null);
   let dragging = $state(false);
-  let bump = $state(false);
   let lastSent = 0;
   let gestureStart: number | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let settle: ReturnType<typeof setTimeout> | undefined;
+  let repeat: ReturnType<typeof setInterval> | undefined;
+  let holdDelay: ReturnType<typeof setTimeout> | undefined;
 
+  const id = $derived(`slider-${control.id}`);
   const value = $derived(local ?? control.value ?? control.min);
   const pct = $derived(((value - control.min) / Math.max(1, control.max - control.min)) * 100);
 
@@ -32,10 +39,6 @@
   function oninput(e: Event) {
     gestureStart ??= control.value;
     const v = Number((e.target as HTMLInputElement).value);
-    if ((v === control.min || v === control.max) && v !== local) {
-      bump = true;
-      setTimeout(() => (bump = false), ms("fast"));
-    }
     local = v;
     send(v, false);
   }
@@ -44,117 +47,180 @@
     const v = Number((e.target as HTMLInputElement).value);
     dragging = false;
     send(v, true);
-    setTimeout(() => (local = null), 400);
+    clearTimeout(settle);
+    settle = setTimeout(() => (local = null), 400);
   }
+
+  // Fine adjust: each press moves one step and goes out at the throttled pace.
+  // The press (or a held run of them) counts as one change once it stops, so
+  // Undo puts back where it started.
+  function step(dir: 1 | -1) {
+    gestureStart ??= control.value;
+    const v = Math.min(control.max, Math.max(control.min, value + dir));
+    if (v === value) return;
+    local = v;
+    send(v, false);
+    clearTimeout(settle);
+    settle = setTimeout(() => {
+      send(local ?? v, true);
+      settle = setTimeout(() => (local = null), 400);
+    }, 500);
+  }
+  function hold(dir: 1 | -1) {
+    step(dir);
+    holdDelay = setTimeout(() => (repeat = setInterval(() => step(dir), 120)), 420);
+  }
+  function release() {
+    clearTimeout(holdDelay);
+    clearInterval(repeat);
+    repeat = undefined;
+  }
+  // A keyboard press arrives as a click with no pointer (detail 0); pointer
+  // presses are handled on pointerdown so holding repeats.
+  const keyStep = (dir: 1 | -1) => (e: MouseEvent) => e.detail === 0 && step(dir);
 </script>
 
 <div class="slider" class:compact class:off={!control.enabled}>
   <div class="head">
-    <span class="label">{control.label}</span>
+    <label class="label" for={id}>{control.label}</label>
     {#if control.enabled}
-      <span class="val" class:pop={dragging}>{control.value === null && local === null ? "–" : value}</span>
+      <span class="val" class:drag={dragging}>{control.value === null && local === null ? "–" : value}</span>
     {:else}
       <Lock {control} />
     {/if}
   </div>
-  <div class="track" class:bump style="--p:{pct}%">
-    <input
-      type="range"
-      min={control.min}
-      max={control.max}
-      step="1"
-      value={value}
-      disabled={!control.enabled}
-      aria-label={control.label}
-      onpointerdown={() => (dragging = true)}
-      {oninput}
-      {onchange}
-    />
+  <div class="line">
+    {#if fine && control.enabled}
+      <button class="fine start" aria-label="Decrease {control.label}" onpointerdown={() => hold(-1)} onpointerup={release} onpointerleave={release} onclick={keyStep(-1)}>
+        <Minus size={14} strokeWidth={3} />
+      </button>
+    {/if}
+    <div class="track">
+      <div class="bar" aria-hidden="true"><i style:width="{pct}%"></i></div>
+      <input
+        {id}
+        type="range"
+        min={control.min}
+        max={control.max}
+        step="1"
+        value={value}
+        disabled={!control.enabled}
+        onpointerdown={() => (dragging = true)}
+        {oninput}
+        {onchange}
+      />
+    </div>
+    {#if fine && control.enabled}
+      <button class="fine end" aria-label="Increase {control.label}" onpointerdown={() => hold(1)} onpointerup={release} onpointerleave={release} onclick={keyStep(1)}>
+        <Plus size={14} strokeWidth={3} />
+      </button>
+    {/if}
   </div>
 </div>
 
 <style>
   .slider {
-    padding: 10px 0;
+    padding: var(--space-2) 0;
   }
   .head {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
+    align-items: baseline;
+    gap: var(--space-3);
   }
   .label {
-    font-weight: 550;
+    font-weight: 800;
+    font-size: var(--fs-lg);
   }
   .compact .label {
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
   }
   .val {
+    font-family: var(--font-mono);
+    font-size: var(--fs-3xl);
     font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    min-width: 34px;
-    text-align: center;
-    padding: 2px 8px;
-    border-radius: var(--r-xs);
-    background: var(--accent-soft);
-    color: var(--accent-ink);
-    transition: transform var(--fast) var(--spring);
+    padding: 0 6px;
+    margin-right: -6px;
   }
-  .val.pop {
-    transform: scale(1.12);
+  .compact .val {
+    font-size: var(--fs-2xl);
+  }
+  /* While you drag, the readout inverts. */
+  .val.drag {
+    background: var(--ink);
+    color: var(--ground);
+  }
+  .line {
+    display: flex;
+    align-items: center;
+    margin-top: var(--space-2);
   }
   .track {
     position: relative;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    transition: transform var(--fast) var(--spring);
+    flex: 1 1 auto;
+    height: 16px;
   }
-  .track.bump {
-    animation: bump var(--fast) var(--ease);
+  .bar {
+    height: 16px;
+    border: 2px solid var(--ink);
   }
-  @keyframes bump {
-    40% {
-      transform: scaleX(1.012);
-    }
+  .bar i {
+    display: block;
+    height: 100%;
+    background: var(--ink);
+    /* Moves smoothly when something else sets the value (a hotkey); a drag follows the pointer at once. */
+    transition: width var(--base) var(--ease);
+  }
+  .compact .bar,
+  .compact .track {
+    height: 14px;
   }
   input {
-    -webkit-appearance: none;
-    appearance: none;
+    position: absolute;
+    left: 0;
+    top: -14px;
     width: 100%;
-    height: 8px;
+    height: var(--hit);
     margin: 0;
-    border-radius: var(--r-full);
-    background: var(--grad-x) 0 0 / var(--p) 100% no-repeat, var(--panel-2);
-    box-shadow: inset 0 0 0 1px var(--line);
+    opacity: 0;
     cursor: pointer;
   }
-  input::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--knob);
+  .track:has(input:focus-visible) .bar {
+    outline: 2px solid var(--ink);
+    outline-offset: 3px;
+  }
+  /* −/+ are 44px to hit and look like a glyph; the negative margin keeps the row as tall as the bar. */
+  .fine {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: var(--hit);
+    height: var(--hit);
+    padding: 0;
     border: none;
-    box-shadow: var(--shadow-knob), 0 0 0 4px var(--accent-soft);
-    transition: transform var(--fast) var(--spring), box-shadow var(--fast);
+    background: none;
+    color: var(--ink);
+    transition: background var(--fast) var(--ease);
   }
-  input:hover::-webkit-slider-thumb {
-    transform: scale(1.1);
+  .fine:hover {
+    background: var(--wash);
   }
-  input:active::-webkit-slider-thumb {
-    transform: scale(1.18);
-    box-shadow: var(--shadow-knob), 0 0 0 7px var(--accent-soft);
+  .fine.start {
+    margin: -14px 0 -14px -10px;
+  }
+  .fine.end {
+    margin: -14px -10px -14px 0;
+  }
+  .off {
+    opacity: 0.6;
+  }
+  .off .bar {
+    border-style: dashed;
+  }
+  .off .bar i {
+    background: var(--rule);
   }
   .off input {
     cursor: default;
-    background: var(--panel-2);
-    opacity: 0.6;
-  }
-  .off input::-webkit-slider-thumb {
-    box-shadow: var(--shadow-knob);
-  }
-  .off .label {
-    color: var(--text-2);
   }
 </style>
