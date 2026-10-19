@@ -1,4 +1,4 @@
-import type { AppState, Feature, FeatureOutcome, Outcome } from "./types";
+import type { AppState, Feature, FeatureOutcome, HotkeyAction, HotkeysView, Outcome } from "./types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -13,6 +13,10 @@ type Backend = {
   pickPictureMode(label: string, confirmed: boolean): Promise<FeatureOutcome>;
   undo(): Promise<Outcome>;
   resetOriginal(): Promise<Outcome>;
+  getHotkeys(): Promise<HotkeysView>;
+  setHotkeys(enabled: boolean, bindings: Record<HotkeyAction, string>): Promise<HotkeysView>;
+  getAutostart(): Promise<boolean>;
+  setAutostart(on: boolean): Promise<boolean>;
   openMain(page?: string): Promise<void>;
   quit(): Promise<void>;
   onState(cb: (s: AppState) => void): void;
@@ -33,6 +37,10 @@ async function tauriBackend(): Promise<Backend> {
     pickPictureMode: (label, confirmed) => invoke("pick_picture_mode", { label, confirmed }),
     undo: () => invoke("undo"),
     resetOriginal: () => invoke("reset_original"),
+    getHotkeys: () => invoke("get_hotkeys"),
+    setHotkeys: (enabled, bindings) => invoke("set_hotkeys", { enabled, bindings }),
+    getAutostart: () => invoke("get_autostart"),
+    setAutostart: (on) => invoke("set_autostart", { on }),
     openMain: (page) => invoke("open_main", { page: page ?? null }),
     quit: () => invoke("quit"),
     onState: (cb) => void listen<AppState>("state", (e) => cb(e.payload)),

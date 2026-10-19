@@ -15,6 +15,7 @@
     aside,
     i = 0,
     row = false,
+    wrap = false,
     tint = false,
     loading = false,
     children,
@@ -28,6 +29,8 @@
     i?: number;
     /** Lay the children out in a row: icon, text, control. */
     row?: boolean;
+    /** With `row`: let a child with `flex-basis: 100%` drop to its own line below. */
+    wrap?: boolean;
     /** A soft accent wash, for the one card on a page that leads. */
     tint?: boolean;
     /** Values are being re-read: dim the body and run a sheen across it. */
@@ -36,7 +39,7 @@
   } = $props();
 </script>
 
-<section class="card" class:row class:tint class:loading in:fly={rise(i)}>
+<section class="card" class:row class:wrap class:tint class:loading in:fly={rise(i)}>
   {#if title || hint || aside}
     <div class="title">
       {#if title}<h2>{title}</h2>{/if}
@@ -57,6 +60,9 @@
     display: flex;
     align-items: center;
     gap: var(--space-4);
+  }
+  .wrap {
+    flex-wrap: wrap;
   }
   .tint {
     background: linear-gradient(135deg, var(--accent-soft), transparent 65%), var(--panel);

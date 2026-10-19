@@ -2,7 +2,7 @@
 // plain browser (`npm run dev`). It is NOT used inside the app: the real
 // rules, safety checks and monitor access live in nubless-core.
 
-import type { AppState, ControlView, Feature, FeatureOutcome, FeatureState, Outcome } from "./types";
+import type { AppState, ControlView, Feature, FeatureOutcome, FeatureState, HotkeyAction, HotkeysView, Outcome } from "./types";
 
 const LABS = "Looks right, but hasn't been tested on a real monitor yet.";
 const UNMAPPED = "Not mapped yet. We know where it lives, but not how it's encoded.";
@@ -51,7 +51,33 @@ const key: Record<Feature, keyof FeatureState> = {
 };
 const list = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
+const HOTKEY_LABELS: Record<HotkeyAction, [string, string]> = {
+  "brightness-up": ["Brightness up", "Ctrl+Alt+PageUp"],
+  "brightness-down": ["Brightness down", "Ctrl+Alt+PageDown"],
+  "next-picture-mode": ["Next picture mode", "Ctrl+Alt+End"],
+};
+
 export function previewBackend() {
+  let autostart = false;
+  let hotkeys = {
+    enabled: true,
+    bindings: Object.fromEntries(Object.entries(HOTKEY_LABELS).map(([a, [, k]]) => [a, k])) as Record<HotkeyAction, string>,
+  };
+  // Mimics the OS refusing a combination another app already holds.
+  const hotkeysView = (): HotkeysView => {
+    const seen = new Map<string, string>();
+    return {
+      enabled: hotkeys.enabled,
+      bindings: (Object.keys(HOTKEY_LABELS) as HotkeyAction[]).map((action) => {
+        const [label, default_keys] = HOTKEY_LABELS[action];
+        const keys = hotkeys.bindings[action];
+        const clash = seen.get(keys);
+        seen.set(keys, label);
+        const error = !hotkeys.enabled ? null : clash ? `Already used for ${clash}.` : keys === "Ctrl+Alt+Delete" ? "Another app is already using Ctrl+Alt+Delete." : null;
+        return { action, label, keys, default_keys, error };
+      }),
+    };
+  };
   const values: Record<string, number> = { "ai-sound": 1, brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
   const original = { ...values };
   let labs = false;
@@ -149,6 +175,14 @@ export function previewBackend() {
       emit();
       return { state: state(), toast: "Your original settings are back", undoable: false };
     },
+    async getHotkeys() { return hotkeysView(); },
+    async setHotkeys(enabled: boolean, b: Record<HotkeyAction, string>) {
+      await wait(150);
+      hotkeys = { enabled, bindings: { ...b } };
+      return hotkeysView();
+    },
+    async getAutostart() { return autostart; },
+    async setAutostart(on: boolean) { await wait(200); autostart = on; return autostart; },
     async openMain() {},
     async quit() {},
     onState(cb: (s: AppState) => void) { listeners.push(cb); },

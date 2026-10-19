@@ -19,6 +19,7 @@ use nubless_core::transport::Transport;
 use nubless_core::{Controller, Timing};
 use serde::Serialize;
 
+use crate::hotkeys::{Action, BRIGHTNESS_STEP};
 use crate::view::{self, AppState, BaselineView, FeaturesView, MonitorCard};
 
 type Reply<T> = Sender<T>;
@@ -47,6 +48,8 @@ pub enum Req {
     },
     Undo(Reply<Result<Outcome, String>>),
     ResetOriginal(Reply<Result<Outcome, String>>),
+    /// A global shortcut fired. No reply: every window gets the new state.
+    Hotkey(Action),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -178,13 +181,31 @@ impl Worker {
             batch.extend(rx.try_iter());
             // A newer value for the same control replaces older ones (slider drags).
             let mut latest = std::collections::HashMap::new();
+            // A held brightness key adds up to one write, not a queue of them.
+            let mut brightness_steps = 0;
             for (i, r) in batch.iter().enumerate() {
-                if let Req::Set { id, .. } = r {
-                    latest.insert(id.clone(), i);
+                match r {
+                    Req::Set { id, .. } => {
+                        latest.insert(id.clone(), i);
+                    }
+                    Req::Hotkey(Action::BrightnessUp) => brightness_steps += 1,
+                    Req::Hotkey(Action::BrightnessDown) => brightness_steps -= 1,
+                    _ => {}
                 }
+            }
+            if brightness_steps != 0 {
+                self.step("brightness", brightness_steps * BRIGHTNESS_STEP);
+                let s = self.state();
+                (self.notify)(&s);
             }
             for (i, req) in batch.into_iter().enumerate() {
                 match req {
+                    Req::Hotkey(Action::BrightnessUp | Action::BrightnessDown) => {}
+                    Req::Hotkey(Action::NextPictureMode) => {
+                        self.next_picture_mode();
+                        let s = self.state();
+                        (self.notify)(&s);
+                    }
                     Req::Set { id, value, reply } if latest.get(&id) == Some(&i) => {
                         let _ = reply.send(self.set(&id, value));
                     }
@@ -290,7 +311,7 @@ impl Worker {
             Req::ResetOriginal(r) => {
                 let _ = r.send(self.reset_original());
             }
-            Req::Set { .. } => unreachable!("handled in run"),
+            Req::Set { .. } | Req::Hotkey(_) => unreachable!("handled in run"),
         }
     }
 
@@ -428,6 +449,54 @@ impl Worker {
             toast: changed.then(|| format!("{label} updated")),
             undoable: changed,
         })
+    }
+
+    /// Move a range control by `delta`, clamped to its safe range. Silent when
+    /// it can't (no monitor, locked): a hotkey has nowhere to show an error.
+    fn step(&mut self, id: &str, delta: i32) {
+        let Some(conn) = &self.conn else { return };
+        let Some(control) = PROFILE.control(id) else {
+            return;
+        };
+        let nubless_core::profile::ValueKind::Range { min, max } = control.kind else {
+            return;
+        };
+        let Some(current) = conn.value(id) else {
+            return;
+        };
+        let next = (i32::from(current) + delta).clamp(i32::from(min), i32::from(max)) as u16;
+        if next != current {
+            let _ = self.set(id, next);
+        }
+    }
+
+    /// Switch to the next picture mode in the monitor's order. Modes that would
+    /// need a question first (turning AI off) are skipped: a hotkey can't ask.
+    fn next_picture_mode(&mut self) {
+        let Some(nubless_core::profile::ValueKind::Choice { choices }) =
+            PROFILE.control("picture-mode").map(|c| c.kind)
+        else {
+            return;
+        };
+        let current = match &self.conn {
+            Some(c) if c.demo => self.demo_picture.clone(),
+            Some(c) => c.picture_mode().map(str::to_string),
+            None => return,
+        };
+        let start = current
+            .as_deref()
+            .and_then(|l| choices.iter().position(|ch| ch.label == l))
+            .map_or(0, |i| i + 1);
+        for k in 0..choices.len() {
+            let label = choices[(start + k) % choices.len()].label;
+            if current.as_deref() == Some(label) {
+                continue;
+            }
+            match self.picture_mode(label, false) {
+                FeatureOutcome::Confirm { .. } => continue,
+                _ => return,
+            }
+        }
     }
 
     /// Smart-feature state: simulated in the demo, read from the monitor otherwise.
@@ -937,6 +1006,62 @@ mod tests {
         assert_eq!(value(&mut w, "brightness"), Some(50));
         let journal = &w.conn.as_ref().unwrap().ctl.journal().entries;
         assert_eq!(journal.len(), 1, "only one write reached the monitor");
+    }
+
+    /// `n` presses of the same hotkey, as a held key delivers them.
+    fn presses(action: Action, n: usize) -> Vec<Req> {
+        (0..n).map(|_| Req::Hotkey(action)).collect()
+    }
+
+    /// Feed requests to the worker the way the app does, then stop.
+    fn run_batch(w: &mut Worker, reqs: Vec<Req>) {
+        let (tx, rx) = channel();
+        for r in reqs {
+            tx.send(r).unwrap();
+        }
+        drop(tx);
+        w.run(rx);
+    }
+
+    #[test]
+    fn held_brightness_keys_become_one_write() {
+        let mut w = hardware_worker("hk-bright", false);
+        let before = value(&mut w, "brightness").unwrap();
+        run_batch(&mut w, presses(Action::BrightnessDown, 3));
+        assert_eq!(
+            value(&mut w, "brightness"),
+            Some(before - 3 * BRIGHTNESS_STEP as u16)
+        );
+        let journal = &w.conn.as_ref().unwrap().ctl.journal().entries;
+        assert_eq!(journal.len(), 1, "three presses, one write");
+    }
+
+    #[test]
+    fn brightness_keys_stop_at_the_safe_range() {
+        let mut w = hardware_worker("hk-clamp", false);
+        run_batch(&mut w, presses(Action::BrightnessUp, 40));
+        assert_eq!(value(&mut w, "brightness"), Some(100));
+    }
+
+    #[test]
+    fn next_picture_mode_skips_modes_that_would_need_a_question() {
+        let mut w = hardware_worker("hk-mode", false);
+        assert!(
+            w.state().features.state.ai_scene_optimization,
+            "mock reports AI on"
+        );
+        let order: Vec<_> = (0..4)
+            .map(|_| {
+                run_batch(&mut w, vec![Req::Hotkey(Action::NextPictureMode)]);
+                w.state().features.picture_mode.unwrap()
+            })
+            .collect();
+        // From Personalized Picture, with AI on: only the AI-capable modes.
+        assert_eq!(order, ["Gamer 1", "Gamer 2", "FPS", "Personalized Picture"]);
+        assert!(
+            w.state().features.state.ai_scene_optimization,
+            "AI was never switched off"
+        );
     }
 
     #[test]

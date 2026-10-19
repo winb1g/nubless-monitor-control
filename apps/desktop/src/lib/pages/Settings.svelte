@@ -1,12 +1,31 @@
 <script lang="ts">
-  import { History, FlaskConical, Palette, MonitorSmartphone, ShieldCheck, Search } from "@lucide/svelte";
-  import { ui, resetOriginal, setLabs, useDemo, rescan } from "../store.svelte";
+  import { History, FlaskConical, Palette, MonitorSmartphone, ShieldCheck, Search, Power } from "@lucide/svelte";
+  import { ui, resetOriginal, setLabs, useDemo, rescan, toast } from "../store.svelte";
+  import { api } from "../api";
   import Card from "../components/Card.svelte";
   import IconBadge from "../components/IconBadge.svelte";
+  import ShortcutsCard from "../components/ShortcutsCard.svelte";
   import Toggle from "../components/Toggle.svelte";
   import { theme, setTheme } from "../theme.svelte";
 
   const s = $derived(ui.state);
+
+  // Read from the OS each time, so it's right even if changed in system settings.
+  let autostart = $state(false);
+  let autostartBusy = $state(false);
+  $effect(() => {
+    api().then((b) => b.getAutostart()).then((on) => (autostart = on)).catch(() => {});
+  });
+  async function setAutostart(on: boolean) {
+    autostartBusy = true;
+    try {
+      autostart = await (await api()).setAutostart(on);
+    } catch (e) {
+      toast(String(e), "error");
+    } finally {
+      autostartBusy = false;
+    }
+  }
 </script>
 
 <div class="page">
@@ -32,6 +51,17 @@
     </Card>
 
     <Card row i={1}>
+      <IconBadge icon={Power} size={38} />
+      <div class="text">
+        <h2>Start at login</h2>
+        <p class="muted">Open nubless quietly in the tray when you sign in, so your shortcuts are always ready.</p>
+      </div>
+      <Toggle checked={autostart} pending={autostartBusy} label="Start at login" onchange={setAutostart} />
+    </Card>
+
+    <ShortcutsCard i={2} />
+
+    <Card row i={3}>
       <IconBadge icon={FlaskConical} size={38} />
       <div class="text">
         <h2>Labs</h2>
@@ -40,7 +70,7 @@
       <Toggle checked={!!s?.labs} label="Labs" onchange={(v) => setLabs(v)} />
     </Card>
 
-    <Card row i={2}>
+    <Card row i={4}>
       <IconBadge icon={Palette} size={38} />
       <div class="text">
         <h2>Appearance</h2>
@@ -53,7 +83,7 @@
       </div>
     </Card>
 
-    <Card row i={3}>
+    <Card row i={5}>
       <IconBadge icon={MonitorSmartphone} size={38} />
       <div class="text">
         <h2>Demo monitor</h2>

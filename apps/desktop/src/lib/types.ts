@@ -68,3 +68,20 @@ export type FeatureOutcome =
   | { kind: "applied"; state: AppState; notice: string | null }
   | { kind: "confirm"; question: string }
   | { kind: "blocked"; reason: string; state: AppState };
+
+export type HotkeyAction = "brightness-up" | "brightness-down" | "next-picture-mode";
+
+export interface HotkeyBinding {
+  action: HotkeyAction;
+  label: string;
+  /** Accelerator string, e.g. "Ctrl+Alt+PageUp". */
+  keys: string;
+  default_keys: string;
+  /** Why this one isn't active: taken by another app, or not a valid key. */
+  error: string | null;
+}
+
+export interface HotkeysView {
+  enabled: boolean;
+  bindings: HotkeyBinding[];
+}

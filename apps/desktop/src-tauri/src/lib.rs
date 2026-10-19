@@ -1,16 +1,24 @@
+mod hotkeys;
 mod platform;
 mod view;
 mod worker;
 
+use std::collections::BTreeMap;
 use std::sync::mpsc::{channel, Sender};
 
 use nubless_core::rules::Feature;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Rect, State, WindowEvent};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_global_shortcut::ShortcutState;
 
+use hotkeys::{Action, HotkeysView, Registry};
 use view::AppState;
 use worker::{FeatureOutcome, Outcome, Req};
+
+/// Passed by the login item, so nubless starts quietly in the tray.
+const HIDDEN_ARG: &str = "--hidden";
 
 type Backend = Sender<Req>;
 
@@ -139,6 +147,35 @@ async fn reset_original(app: AppHandle, b: State<'_, Backend>) -> Result<Outcome
 }
 
 #[tauri::command]
+fn get_hotkeys(registry: State<'_, Registry>) -> HotkeysView {
+    registry.view()
+}
+
+#[tauri::command]
+fn set_hotkeys(app: AppHandle, enabled: bool, bindings: BTreeMap<Action, String>) -> HotkeysView {
+    hotkeys::apply(&app, hotkeys::Prefs { enabled, bindings }, true)
+}
+
+/// The OS login item is the record of whether this is on, so it stays right
+/// even if the user removes it in their system settings.
+#[tauri::command]
+fn get_autostart(app: AppHandle) -> Result<bool, String> {
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_autostart(app: AppHandle, on: bool) -> Result<bool, String> {
+    let launcher = app.autolaunch();
+    if on {
+        launcher.enable()
+    } else {
+        launcher.disable()
+    }
+    .map_err(|e| format!("Couldn't change start at login: {e}"))?;
+    launcher.is_enabled().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn open_main(app: AppHandle, page: Option<String>) {
     show_main(&app);
     if let Some(p) = page {
@@ -201,6 +238,7 @@ fn toggle_popover(app: &AppHandle, rect: Rect) {
 pub fn run() {
     let demo =
         std::env::args().any(|a| a == "--demo") || std::env::var_os("NUBLESS_DEMO").is_some();
+    let hidden = std::env::args().any(|a| a == HIDDEN_ARG);
     // The monitor thread starts before Tauri, so it reaches the app through this cell.
     static APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
     let backend = worker::spawn(
@@ -219,7 +257,25 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![HIDDEN_ARG]),
+        ))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    // Held keys repeat Pressed; the worker merges the repeats.
+                    if event.state != ShortcutState::Pressed {
+                        return;
+                    }
+                    if let Some(action) = app.state::<Registry>().action_for(shortcut) {
+                        let _ = app.state::<Backend>().send(Req::Hotkey(action));
+                    }
+                })
+                .build(),
+        )
         .manage(backend)
+        .manage(Registry::default())
         .invoke_handler(tauri::generate_handler![
             get_state,
             rescan,
@@ -231,11 +287,16 @@ pub fn run() {
             pick_picture_mode,
             undo,
             reset_original,
+            get_hotkeys,
+            set_hotkeys,
+            get_autostart,
+            set_autostart,
             open_main,
             quit
         ])
         .setup(|app| {
             let _ = APP.set(app.handle().clone());
+            hotkeys::apply(app.handle(), hotkeys::Prefs::load(), false);
             let open = MenuItem::with_id(app, "open", "Open nubless", true, None::<&str>)?;
             let updates =
                 MenuItem::with_id(app, "updates", "Check for updates", true, None::<&str>)?;
@@ -273,8 +334,10 @@ pub fn run() {
         // Show the main window from here once its page has loaded (it starts
         // hidden to avoid a blank flash). Showing it from the page's own script
         // left the window ignoring input on first launch.
-        .on_page_load(|webview, payload| {
+        // Started at login: stay in the tray until the user opens the window.
+        .on_page_load(move |webview, payload| {
             if webview.label() == "main"
+                && !hidden
                 && payload.event() == tauri::webview::PageLoadEvent::Finished
             {
                 let w = webview.window();

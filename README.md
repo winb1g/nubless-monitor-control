@@ -33,7 +33,7 @@ The full control map with evidence is in [`docs/research/05-screen-settings-pane
 
 ## Desktop app
 
-A tray app with a full settings window, built with Tauri 2 and Svelte: your monitors in a strip, smart features with LG's interlocks, picture mode, sliders, gaming and sound controls, Labs for not-yet-verified controls, light and dark themes, and one-click updates (update, install and restart). Run it against a simulated monitor with no hardware involved:
+A tray app with a full settings window, built with Tauri 2 and Svelte: your monitors in a strip, smart features with LG's interlocks, picture mode, sliders, gaming and sound controls, Labs for not-yet-verified controls, global keyboard shortcuts (brightness and picture mode, rebindable), start at login, light and dark themes, and one-click updates (update, install and restart). Run it against a simulated monitor with no hardware involved:
 
 ```bash
 cd apps/desktop && npm install && npx tauri dev -- -- --demo
