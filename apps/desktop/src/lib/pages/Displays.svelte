@@ -463,16 +463,19 @@
     color: var(--accent);
     opacity: 0.8;
   }
-  .tile.pending::after {
+  /* Progress ring around the tile icon (a square box, so it spins cleanly). */
+  .ticon {
+    position: relative;
+  }
+  .tile.pending .ticon::after {
     content: "";
     position: absolute;
-    inset: -3px;
-    border-radius: 18px;
+    inset: -5px;
+    border-radius: 50%;
     border: 2px solid transparent;
-    border-top-color: var(--accent-2);
-    border-right-color: var(--accent);
+    border-top-color: var(--accent);
+    border-right-color: var(--accent-2);
     animation: spin 0.8s linear infinite;
-    pointer-events: none;
   }
   @keyframes spin {
     to {
