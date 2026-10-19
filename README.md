@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/logo.svg" alt="nubless logo" width="96" height="96">
+<img src="docs/assets/logo.svg" alt="nubless" width="96" height="96">
 
 # nubless
 
@@ -17,7 +17,7 @@ Safe, open-source, cross-platform control for the **LG UltraGear AI 27GM950B**, 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/window-dark.png">
-  <img src="docs/assets/window-light.png" alt="The nubless window: smart features, picture modes and sliders" width="720">
+  <img src="docs/assets/window-light.png" alt="The nubless window: sliders, picture modes grouped by use, and smart features" width="720">
 </picture>
 
 <sub>Shown in demo mode, with a simulated monitor.</sub>
@@ -119,7 +119,7 @@ nubless --experimental set adaptive-sync basic   # asks "Keep this change?", rev
 | Brightness, Contrast | `0x10`, `0x12` | read ✔ · write: safe policy (standard MCCS) |
 | Black Stabilizer, Response Time, Adaptive-Sync/VRR | `0xF9`, `0xF7`, `0xF8` | read ✔ · write: `--experimental` until round-trip confirmed |
 | Volume, Mute | `0x62`, `0x8D` | read ✔ · write: `--experimental` |
-| Picture mode (all 8 tiles) | `0x15` | read ✔ · write ✔ (OSD-verified), through the AI interlock |
+| Picture mode (all 8 modes) | `0x15` | read ✔ · write ✔ (OSD-verified), through the AI interlock |
 | AI Scene Optimization, AI Sound | `0xA6` sub-commands 2, 6 | read ✔ · write ✔ (OSD-verified) |
 | Color temperature, RGB gains, aspect ratio, motion blur, AI Upscaling | various | read ✔ · not writable yet (encoding unconfirmed) |
 | Input | `0x60` | read ✔ · **blocked**: switching input can cut the DDC link (dead end) |
@@ -139,7 +139,7 @@ The control map with evidence is in [`docs/research/05-screen-settings-panel.md`
 | [`docs/verify-on-hardware.md`](docs/verify-on-hardware.md) | Hardware test checklist |
 | [`docs/mapping-guide.md`](docs/mapping-guide.md) | How to map a control safely |
 | [`docs/roadmap.md`](docs/roadmap.md) | Where this is going |
-| [`docs/design-system.md`](docs/design-system.md) | Tokens, motion and components for the UI |
+| [`docs/design-system.md`](docs/design-system.md) | Tokens, motion, components and the design kit for the UI |
 | [`docs/research/`](docs/research/README.md) | The reverse-engineering research behind it all |
 
 <details>

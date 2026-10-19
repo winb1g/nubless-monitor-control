@@ -31,6 +31,7 @@ jobs:
         run: |
           npm ci
           npm run check
+          npm run lint:tokens
           npm run build
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings

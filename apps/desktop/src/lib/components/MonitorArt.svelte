@@ -22,7 +22,7 @@
     width: 100%;
     padding: 14px;
     border: 2px dashed var(--ink);
-    border-radius: 10px;
+    border-radius: var(--r-lg);
   }
   .screen {
     aspect-ratio: 16 / 9;
@@ -31,7 +31,7 @@
     justify-content: center;
     gap: 10px;
     border: 2px dashed var(--rule);
-    border-radius: 3px;
+    border-radius: var(--r-sm);
   }
   .msg {
     font-family: var(--font-mono);
@@ -57,6 +57,6 @@
     max-width: 60%;
     height: 10px;
     border: 2px dashed var(--ink);
-    border-radius: 5px;
+    border-radius: var(--r-md);
   }
 </style>

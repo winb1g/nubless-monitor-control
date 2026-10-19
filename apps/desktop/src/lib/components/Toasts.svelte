@@ -102,7 +102,7 @@
     width: 100%;
     background: var(--toast-signal);
     transform-origin: left;
-    animation: shrink 5s linear forwards;
+    animation: shrink var(--undo-window) linear forwards;
   }
   @keyframes shrink {
     to {

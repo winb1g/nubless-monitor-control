@@ -8,6 +8,8 @@
   import DialogHost from "./lib/components/DialogHost.svelte";
 
   const isTray = location.hash.startsWith("#/tray");
+  // The design kit (every component, every state) is for `npm run dev` only.
+  const isKit = import.meta.env.DEV && location.hash.startsWith("#/kit");
   if (isTray) document.body.classList.add("tray");
   applyTheme();
 
@@ -20,7 +22,9 @@
   });
 </script>
 
-{#if isTray}
+{#if isKit}
+  {#await import("./lib/pages/Kit.svelte") then kit}<kit.default />{/await}
+{:else if isTray}
   <Tray />
 {:else}
   <Shell />

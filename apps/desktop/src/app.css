@@ -70,6 +70,7 @@
   --slow: 260ms; /* page change, dialog */
   --hatch: 600ms; /* one step of the busy bar */
   --blink: 1s; /* the Simulated LED */
+  --undo-window: 5s; /* how long a toast keeps Undo on offer (the timer line); store.svelte.ts waits the same 5000ms */
 
   color-scheme: light;
 }
