@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { rise, pop } from "../motion";
-  import { fly, scale } from "svelte/transition";
-  import { RefreshCw, CircleCheck, Download, Rocket, CloudOff, PackageOpen } from "@lucide/svelte";
+  import { rise } from "../motion";
+  import { fly } from "svelte/transition";
+  import { Check } from "@lucide/svelte";
   import { ui } from "../store.svelte";
-  import IconBadge from "../components/IconBadge.svelte";
   import { upd, checkForUpdates, installAndRestart } from "../updates.svelte";
 
   $effect(() => {
@@ -15,44 +14,43 @@
 </script>
 
 <div class="page">
-  <h1>Updates</h1>
-  <p class="subtitle">You're on version {ui.state?.version ?? "…"}.</p>
+  <div class="page-head">
+    <h1>Updates</h1>
+    <p class="subtitle">You're on version {ui.state?.version ?? "…"}.</p>
+  </div>
 
-  <section class="card status" in:fly={rise()}>
+  <section class="status" in:fly={rise}>
     {#key upd.phase}
-      <div class="state" in:scale={pop}>
+      <div class="state" in:fly={rise}>
         {#if upd.phase === "checking" || upd.phase === "idle"}
-          <IconBadge icon={RefreshCw} size={68} iconSize={26} tone="neutral" spin />
+          <div class="hatch wide" aria-hidden="true"></div>
           <h2>Checking for updates…</h2>
           <p class="muted">This only takes a moment.</p>
         {:else if upd.phase === "current"}
-          <IconBadge icon={CircleCheck} size={68} iconSize={28} tone="mint" />
+          <span class="ok" aria-hidden="true"><Check size={22} strokeWidth={3} /></span>
           <h2>You're up to date</h2>
           <p class="muted">nubless {ui.state?.version} is the latest version.</p>
         {:else if upd.phase === "unpublished"}
-          <IconBadge icon={PackageOpen} size={68} iconSize={26} tone="neutral" />
           <h2>No releases yet</h2>
           <p class="muted">You're running a development build. When the first release ships, it'll show up here.</p>
         {:else if upd.phase === "available"}
-          <IconBadge icon={Download} size={68} iconSize={26} tone="brand" glow />
+          <div class="eyebrow">Available</div>
           <h2>nubless {upd.version} is ready</h2>
           {#if upd.notes}<p class="notes">{upd.notes}</p>{/if}
-          <button class="btn primary big" onclick={installAndRestart}><Rocket size={17} />Update and restart</button>
+          <button class="btn signal" onclick={installAndRestart}>Update and restart</button>
         {:else if upd.phase === "downloading"}
-          <IconBadge icon={Download} size={68} iconSize={26} tone="brand" glow />
           <h2>Downloading {upd.version}</h2>
           <div class="bar"><span style="width:{upd.progress}%"></span></div>
-          <p class="muted small">{upd.progress}%</p>
+          <p class="mono small">{upd.progress}%</p>
         {:else if upd.phase === "installing"}
-          <IconBadge icon={RefreshCw} size={68} iconSize={26} tone="brand" glow spin />
+          <div class="hatch wide" aria-hidden="true"></div>
           <h2>Installing…</h2>
           <p class="muted">Almost there.</p>
         {:else if upd.phase === "restarting"}
-          <IconBadge icon={Rocket} size={68} iconSize={26} tone="mint" />
           <h2>Restarting nubless</h2>
           <p class="muted">See you in a second.</p>
         {:else}
-          <IconBadge icon={CloudOff} size={68} iconSize={26} tone="coral" />
+          <div class="eyebrow err">Error</div>
           <h2>Couldn't check</h2>
           <p class="muted">{upd.error}</p>
         {/if}
@@ -61,65 +59,76 @@
   </section>
 
   <div class="foot">
-    <span class="faint small">{ago ? `Last checked at ${ago}` : ""}</span>
-    <button class="btn ghost" onclick={checkForUpdates} disabled={busy}><RefreshCw size={15} />Check again</button>
+    <span class="eyebrow">{ago ? `Last checked at ${ago}` : ""}</span>
+    <button class="link" onclick={checkForUpdates} disabled={busy}>Check again</button>
   </div>
 </div>
 
 <style>
   .page {
-    max-width: 700px;
+    max-width: 860px;
   }
   .status {
-    min-height: 280px;
-    display: grid;
-    place-items: center;
-    text-align: center;
-    padding: var(--space-10);
+    min-height: 260px;
+    padding: 28px 0 32px;
+    border-top: 2px solid var(--ink);
   }
   .state {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--space-2);
   }
   h2 {
-    font-size: var(--fs-2xl);
-    margin-top: 10px; /* breathing room under the status badge */
+    font-size: var(--fs-3xl);
+    margin-top: var(--space-2);
+  }
+  .state > .eyebrow + h2 {
+    margin-top: 0;
+  }
+  .wide {
+    width: 320px;
+    max-width: 100%;
+    height: 10px;
+  }
+  .ok {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 2px solid var(--ink);
+    background: var(--signal);
+    color: var(--on-signal);
   }
   .notes {
-    max-width: 440px;
-    color: var(--text-2);
-    background: var(--panel-2);
-    padding: var(--space-3) 14px;
-    border-radius: var(--r-lg);
-    margin: var(--space-2) 0 6px;
+    max-width: 520px;
+    color: var(--dim);
+    margin: var(--space-1) 0 var(--space-3);
   }
-  .big {
-    height: 42px;
-    padding: 0 var(--space-5);
-    margin-top: 10px;
+  .state .btn {
+    margin-top: var(--space-3);
+  }
+  .err {
+    color: var(--err);
   }
   .bar {
-    width: 320px;
-    height: 8px;
-    border-radius: var(--r-full);
-    background: var(--panel-2);
-    overflow: hidden;
-    margin-top: 10px;
-    box-shadow: inset 0 0 0 1px var(--line);
+    width: 520px;
+    max-width: 100%;
+    height: 20px;
+    border: 2px solid var(--ink);
+    margin-top: var(--space-2);
   }
   .bar span {
     display: block;
     height: 100%;
-    background: var(--grad);
-    border-radius: var(--r-full);
+    background: var(--ink);
     transition: width var(--fast) linear;
   }
   .foot {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--rule);
   }
 </style>
