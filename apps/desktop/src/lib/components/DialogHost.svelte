@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { pop, fadeQuick } from "../motion";
-  import { fade, scale } from "svelte/transition";
+  import { dialogIn, fadeQuick } from "../motion";
+  import { fade, fly } from "svelte/transition";
   import { ui } from "../store.svelte";
 
   function onkeydown(e: KeyboardEvent) {
@@ -21,7 +21,7 @@
       aria-modal="true"
       aria-labelledby="dlg-title"
       tabindex="-1"
-      transition:scale={pop}
+      in:fly={dialogIn}
       onclick={(e) => e.stopPropagation()}
       onkeydown={() => {}}
     >
@@ -44,15 +44,13 @@
     display: grid;
     place-items: center;
     background: var(--scrim);
-    backdrop-filter: blur(6px);
   }
   .dialog {
-    width: min(420px, calc(100vw - 32px));
-    padding: var(--space-6);
-    border-radius: var(--r-2xl);
-    background: var(--panel);
-    box-shadow: var(--shadow-lg);
-    border: 1px solid var(--line);
+    width: min(440px, calc(100vw - 32px));
+    padding: 18px 20px 14px;
+    border-radius: var(--r-md);
+    background: var(--ground);
+    border: 2px solid var(--ink);
   }
   h2 {
     font-size: var(--fs-xl);
@@ -62,6 +60,6 @@
     display: flex;
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 22px;
+    margin-top: var(--space-4);
   }
 </style>

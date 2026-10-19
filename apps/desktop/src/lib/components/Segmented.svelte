@@ -1,4 +1,6 @@
 <script lang="ts">
+  // A choice among a few named values (Response Time: Normal, Fast, Faster).
+  // The selected one is an ink fill; a locked control gets a dashed outline.
   import { setControl } from "../store.svelte";
   import type { ControlView } from "../types";
   import Lock from "./Lock.svelte";
@@ -6,8 +8,6 @@
   let { control }: { control: ControlView } = $props();
   let pending = $state<number | null>(null);
   const current = $derived(pending ?? control.value);
-  const index = $derived(Math.max(0, control.choices.findIndex((c) => c.raw === current)));
-  const known = $derived(control.choices.some((c) => c.raw === current));
 
   async function pick(raw: number) {
     if (!control.enabled || raw === control.value) return;
@@ -22,77 +22,53 @@
     <span class="label">{control.label}</span>
     {#if !control.enabled}<Lock {control} />{/if}
   </div>
-  <div class="seg" style="--n:{control.choices.length};--i:{index}">
-    {#if known}<span class="thumb"></span>{/if}
+  <div class="seg" role="group" aria-label={control.label}>
     {#each control.choices as c (c.raw)}
-      <button
-        class:active={c.raw === current}
-        disabled={!control.enabled}
-        onclick={() => pick(c.raw)}
-        aria-pressed={c.raw === current}>{c.label}</button
-      >
+      <button class:active={c.raw === current} disabled={!control.enabled} onclick={() => pick(c.raw)} aria-pressed={c.raw === current}>{c.label}</button>
     {/each}
   </div>
 </div>
 
 <style>
   .row {
-    padding: 10px 0;
+    padding: var(--space-2) 0;
   }
   .head {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
   }
   .label {
-    font-weight: 550;
+    font-weight: 600;
   }
   .seg {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(var(--n), 1fr);
-    padding: var(--space-1);
-    border-radius: var(--r-lg);
-    background: var(--panel-2);
-    box-shadow: inset 0 0 0 1px var(--line);
-  }
-  .thumb {
-    position: absolute;
-    top: 4px;
-    bottom: 4px;
-    left: 4px;
-    width: calc((100% - 8px) / var(--n));
-    transform: translateX(calc(100% * var(--i)));
+    display: inline-flex;
+    border: 2px solid var(--ink);
     border-radius: var(--r-sm);
-    background: var(--panel);
-    box-shadow: var(--shadow-sm), 0 0 0 1px var(--line);
-    transition: transform var(--slow) var(--spring);
   }
   button {
-    position: relative;
-    z-index: 1;
-    height: 34px;
+    min-height: 40px;
+    padding: 0 14px;
     border: none;
-    background: none;
-    border-radius: var(--r-sm);
-    font-weight: 550;
-    color: var(--text-2);
-    transition: color var(--fast);
+    background: transparent;
+    color: var(--ink);
+    font-weight: 600;
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
+  button:hover:not(:disabled):not(.active) {
+    background: var(--wash);
   }
   button.active {
-    color: var(--text);
+    background: var(--ink);
+    color: var(--ground);
   }
-  button:active:not(:disabled) {
-    transform: scale(0.97);
+  .off .seg {
+    opacity: 0.6;
+    border-style: dashed;
   }
   .off button {
     cursor: default;
-  }
-  .off .seg {
-    opacity: 0.55;
-  }
-  .off .label {
-    color: var(--text-2);
   }
 </style>

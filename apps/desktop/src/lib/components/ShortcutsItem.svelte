@@ -1,15 +1,12 @@
 <script lang="ts">
   // Global keyboard shortcuts: a master switch, and each action's keys, which
   // you change by clicking them and pressing the new combination.
-  import { Keyboard, RotateCcw } from "@lucide/svelte";
+  import { RotateCcw } from "@lucide/svelte";
   import { api } from "../api";
   import { comboFrom, keyCaps } from "../keys";
   import type { HotkeyAction, HotkeysView } from "../types";
-  import Card from "./Card.svelte";
-  import IconBadge from "./IconBadge.svelte";
+  import Item from "./Item.svelte";
   import Toggle from "./Toggle.svelte";
-
-  let { i = 0 }: { i?: number } = $props();
 
   let view = $state<HotkeysView | null>(null);
   let recording = $state<HotkeyAction | null>(null);
@@ -59,64 +56,50 @@
 
 <svelte:window {onkeydown} />
 
-<Card row i={i} wrap>
-  <IconBadge icon={Keyboard} size={38} />
-  <div class="text">
-    <h2>Keyboard shortcuts</h2>
-    <p class="muted">Change your monitor from anywhere, even with nubless closed to the tray. Click a shortcut to change it.</p>
-  </div>
+<Item title="Keyboard shortcuts" body="Change your monitor from anywhere, even with nubless closed to the tray. Click a shortcut to change it.">
   <Toggle checked={!!view?.enabled} label="Keyboard shortcuts" onchange={(v) => save(v)} />
-
-  {#if view}
-    <ul class="bindings" class:off={!view.enabled}>
-      {#each view.bindings as b (b.action)}
-        <li>
-          <span class="label">{b.label}</span>
-          <button
-            class="combo"
-            class:recording={recording === b.action}
-            class:error={!!b.error}
-            disabled={!view.enabled}
-            onclick={() => record(b.action)}
-            aria-label="{b.label}: {keyCaps(b.keys).join(' ')}. Click to change."
-          >
-            {#if recording === b.action}
-              <span class="prompt">Press new keys… <span class="muted">Esc to cancel</span></span>
-            {:else}
-              {#each keyCaps(b.keys) as cap}<kbd>{cap}</kbd>{/each}
-            {/if}
-          </button>
-          {#if b.keys !== b.default_keys}
-            <button class="reset" title="Back to {keyCaps(b.default_keys).join(' ')}" aria-label="Reset {b.label} to its default" disabled={!view.enabled} onclick={() => save(view!.enabled, { [b.action]: b.default_keys })}>
-              <RotateCcw size={14} />
+  {#snippet below()}
+    {#if view}
+      <ul class="bindings" class:off={!view.enabled}>
+        {#each view.bindings as b (b.action)}
+          <li>
+            <span class="label">{b.label}</span>
+            <button
+              class="combo"
+              class:recording={recording === b.action}
+              class:error={!!b.error}
+              disabled={!view.enabled}
+              onclick={() => record(b.action)}
+              aria-label="{b.label}: {keyCaps(b.keys).join(' ')}. Click to change."
+            >
+              {#if recording === b.action}
+                <span class="prompt">Press new keys… <span class="eyebrow">Esc to cancel</span></span>
+              {:else}
+                {#each keyCaps(b.keys) as cap}<kbd>{cap}</kbd>{/each}
+              {/if}
             </button>
-          {/if}
-          {#if recording === b.action && recordError}
-            <span class="note warn">{recordError}</span>
-          {:else if b.error && view.enabled}
-            <span class="note warn">{b.error} Pick another.</span>
-          {/if}
-        </li>
-      {/each}
-    </ul>
-  {/if}
-</Card>
+            {#if b.keys !== b.default_keys}
+              <button class="reset" title="Back to {keyCaps(b.default_keys).join(' ')}" aria-label="Reset {b.label} to its default" disabled={!view.enabled} onclick={() => save(view!.enabled, { [b.action]: b.default_keys })}>
+                <RotateCcw size={14} />
+              </button>
+            {/if}
+            {#if recording === b.action && recordError}
+              <span class="note err">{recordError}</span>
+            {:else if b.error && view.enabled}
+              <span class="note err">{b.error} Pick another.</span>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  {/snippet}
+</Item>
 
 <style>
-  .text {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
   .bindings {
-    flex-basis: 100%;
     list-style: none;
-    margin: var(--space-2) 0 0;
+    margin: var(--space-1) 0 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
     transition: opacity var(--base) var(--ease);
   }
   .bindings.off {
@@ -124,76 +107,80 @@
   }
   li {
     display: grid;
-    grid-template-columns: 1fr auto 28px;
+    grid-template-columns: 1fr auto 44px;
     align-items: center;
     gap: var(--space-2);
+    min-height: 48px;
+    border-top: 1px solid var(--rule);
   }
   .label {
-    font-weight: 550;
+    font-weight: 500;
   }
   .combo {
     display: flex;
     align-items: center;
     gap: var(--space-1);
-    min-height: 34px;
-    padding: 4px var(--space-2);
-    border: none;
-    border-radius: var(--r-sm);
-    background: var(--panel-2);
-    box-shadow: inset 0 0 0 1px var(--line);
-    transition: box-shadow var(--fast), background var(--fast);
+    min-height: 36px;
+    padding: 4px 6px;
+    border: 2px solid transparent;
+    background: none;
+    transition: background var(--fast) var(--ease);
   }
   .combo:hover:not(:disabled) {
-    box-shadow: inset 0 0 0 1px var(--line-strong);
+    background: var(--wash);
   }
   .combo.recording {
-    background: var(--accent-soft);
-    box-shadow: inset 0 0 0 1.5px var(--accent);
+    background: var(--signal);
+    color: var(--on-signal);
+    border-color: var(--ink);
   }
-  .combo.error {
-    box-shadow: inset 0 0 0 1.5px var(--coral);
+  .combo.error kbd {
+    border-color: var(--err);
+    color: var(--err);
   }
   .combo:disabled {
     cursor: default;
   }
+  /* A keycap: outlined mono, nothing raised. */
   kbd {
-    font: inherit;
+    font-family: var(--font-mono);
     font-size: var(--fs-xs);
-    font-weight: 600;
-    min-width: 24px;
-    padding: 2px 7px;
+    min-width: 28px;
+    padding: 3px 8px;
     text-align: center;
-    border-radius: var(--r-xs);
-    background: var(--panel);
-    box-shadow: var(--shadow-sm), inset 0 -1px 0 var(--line);
+    border: 2px solid var(--ink);
+    border-radius: var(--r-sm);
   }
   .prompt {
     font-size: var(--fs-sm);
-    color: var(--accent-ink);
-    font-weight: 550;
+    font-weight: 600;
     padding: 0 var(--space-1);
+  }
+  .prompt .eyebrow {
+    color: var(--on-signal);
+    margin-left: 6px;
   }
   .reset {
     display: grid;
     place-items: center;
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     border: none;
-    border-radius: var(--r-sm);
     background: none;
-    color: var(--text-2);
-    transition: background var(--fast), color var(--fast);
+    color: var(--dim);
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
   }
   .reset:hover:not(:disabled) {
-    background: var(--panel-2);
-    color: var(--text);
+    background: var(--wash);
+    color: var(--ink);
   }
   .note {
     grid-column: 1 / -1;
     justify-self: end;
+    padding-bottom: var(--space-2);
     font-size: var(--fs-xs);
   }
-  .warn {
-    color: var(--coral);
+  .err {
+    color: var(--err);
   }
 </style>
