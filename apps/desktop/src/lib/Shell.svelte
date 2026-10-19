@@ -106,7 +106,7 @@
     right: 0;
     top: 0;
     height: 42px;
-    border-radius: 13px;
+    border-radius: var(--r-md);
     background: var(--panel);
     box-shadow: var(--shadow-sm), 0 0 0 1px var(--line);
     transform: translateY(calc(var(--i) * 46px));
@@ -122,7 +122,7 @@
     padding: 0 14px;
     border: none;
     background: none;
-    border-radius: 13px;
+    border-radius: var(--r-md);
     color: var(--text-2);
     font-weight: 550;
     text-align: left;
@@ -154,7 +154,7 @@
     align-items: center;
     gap: 9px;
     padding: 10px var(--space-3);
-    border-radius: 13px;
+    border-radius: var(--r-md);
     background: var(--panel);
     box-shadow: 0 0 0 1px var(--line);
     font-size: var(--fs-sm);

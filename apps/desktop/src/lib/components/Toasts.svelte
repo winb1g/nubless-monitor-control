@@ -87,7 +87,7 @@
     color: var(--inverse-text);
     font-weight: 600;
     padding: 5px var(--space-3);
-    border-radius: 9px;
+    border-radius: var(--r-sm);
     transition: background var(--fast);
   }
   .undo:hover {

@@ -75,7 +75,7 @@
   .stack {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--space-4);
   }
   .text {
     flex: 1;
@@ -95,7 +95,7 @@
     border: none;
     background: none;
     padding: 6px var(--space-3);
-    border-radius: 9px;
+    border-radius: var(--r-sm);
     font-weight: 550;
     color: var(--text-2);
     transition: background var(--fast), color var(--fast);

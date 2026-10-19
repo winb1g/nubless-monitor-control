@@ -42,7 +42,7 @@
     align-items: center;
     gap: 5px;
     border: none;
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     padding: 3px 9px;
     border-radius: var(--r-full);

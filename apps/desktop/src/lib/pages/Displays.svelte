@@ -340,7 +340,7 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-    gap: 18px;
+    gap: var(--space-4);
     align-items: start;
   }
 
@@ -372,7 +372,7 @@
     margin-top: 6px;
   }
   .badge {
-    font-size: 10.5px;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     letter-spacing: 0.02em;
     padding: 1px 7px;

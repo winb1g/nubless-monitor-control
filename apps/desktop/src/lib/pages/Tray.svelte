@@ -103,7 +103,7 @@
   .pop {
     margin: 10px;
     padding: 14px var(--space-4) var(--space-2);
-    border-radius: 20px;
+    border-radius: var(--r-2xl);
     background: var(--panel);
     border: 1px solid var(--line);
     box-shadow: var(--shadow-popover);
@@ -152,7 +152,7 @@
     background: var(--panel-2);
     width: 30px;
     height: 30px;
-    border-radius: 9px;
+    border-radius: var(--r-sm);
     display: grid;
     place-items: center;
     color: var(--text-2);

@@ -84,7 +84,7 @@
     gap: var(--space-2);
   }
   h2 {
-    font-size: 19px;
+    font-size: var(--fs-2xl);
     margin-top: 10px; /* breathing room under the status badge */
   }
   .notes {
