@@ -102,6 +102,7 @@ export function previewBackend() {
     },
     async toggleFeature(f: Feature, on: boolean, confirmed: boolean): Promise<FeatureOutcome> {
       if (features[key[f]] === on) return { kind: "applied", state: state(), notice: null };
+      await wait(800); // a real monitor takes about this long to confirm an AI channel write
       if (!on) { features = { ...features, [key[f]]: false }; emit(); return { kind: "applied", state: state(), notice: null }; }
       if (features.pbp) return { kind: "blocked", reason: `${names[f]} is not available while PBP/PIP is on. Turn PBP/PIP off first.`, state: state() };
       if (features.picture_mode_blocks_ai && f !== "my-display-preset") return { kind: "blocked", reason: `${names[f]} isn't available in this picture mode. Switch to Personalized Picture, Gamer 1, Gamer 2 or FPS first.`, state: state() };

@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import { api } from "./api";
 import type { AppState, Feature, FeatureOutcome } from "./types";
 
@@ -28,12 +29,16 @@ export const ui = $state({
   updateBadge: false,
   /** Picture mode being switched to, shown at once while the monitor catches up. */
   switching: null as string | null,
+  /** Smart feature being switched, shown flipped at once while the monitor confirms. */
+  pendingFeature: null as { id: Feature; on: boolean } | null,
 });
 
 let toastId = 0;
 export function toast(text: string, tone: Toast["tone"] = "info", undo?: () => void) {
   const t = { id: ++toastId, text, tone, undo };
-  ui.toasts = [...ui.toasts.slice(-2), t];
+  // Untracked: a toast fired from an $effect must not make that effect depend
+  // on the toast list, or each toast re-runs it and fires another.
+  ui.toasts = [...untrack(() => ui.toasts).slice(-2), t];
   setTimeout(() => dismiss(t.id), undo ? 5000 : 3200);
 }
 export function dismiss(id: number) {
@@ -107,14 +112,22 @@ const featureTitles: Record<Feature, string> = {
 
 /** Toggle a smart feature through the interlock rules, asking when they say so. */
 export async function toggleFeature(feature: Feature, on: boolean) {
+  if (ui.pendingFeature) return;
   const b = await api();
-  let out: FeatureOutcome | undefined = await guarded(() => b.toggleFeature(feature, on, false));
-  if (out?.kind === "confirm") {
-    const ok = await ask({ title: featureTitles[feature], body: out.question, confirm: "Turn on", cancel: "Not now" });
-    if (!ok) return;
-    out = await guarded(() => b.toggleFeature(feature, on, true));
+  ui.pendingFeature = { id: feature, on };
+  try {
+    let out: FeatureOutcome | undefined = await guarded(() => b.toggleFeature(feature, on, false));
+    if (out?.kind === "confirm") {
+      ui.pendingFeature = null;
+      const ok = await ask({ title: featureTitles[feature], body: out.question, confirm: "Turn on", cancel: "Not now" });
+      if (!ok) return;
+      ui.pendingFeature = { id: feature, on };
+      out = await guarded(() => b.toggleFeature(feature, on, true));
+    }
+    handleFeature(out);
+  } finally {
+    ui.pendingFeature = null;
   }
-  handleFeature(out);
 }
 
 /** Switch picture mode through the AI interlock, asking when the rules say so. */

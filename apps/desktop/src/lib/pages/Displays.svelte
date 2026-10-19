@@ -119,15 +119,16 @@
       <section class="card" in:fly={{ y: 14, duration: 320 }}>
         <div class="title"><h2>Smart features</h2><span class="hint">Only one can be on at a time</span></div>
         {#each smart as f}
-          {@const on = s.features.state[f.key]}
-          {@const lock = featureLock(f.id, on)}
+          {@const pending = ui.pendingFeature?.id === f.id}
+          {@const on = pending ? ui.pendingFeature!.on : s.features.state[f.key]}
+          {@const lock = featureLock(f.id, s.features.state[f.key])}
           <div class="feature" class:on>
             <span class="ficon"><f.icon size={18} /></span>
-            <div class="ftext"><b>{f.title}</b><span class="muted small">{f.body}</span></div>
+            <div class="ftext"><b>{f.title}</b><span class="muted small">{pending ? (on ? "Turning on…" : "Turning off…") : f.body}</span></div>
             {#if lock}
               <Lock control={lock} />
             {:else}
-              <Toggle checked={on} label={f.title} onchange={(v) => toggleFeature(f.id, v)} />
+              <Toggle checked={on} {pending} disabled={!!ui.pendingFeature && !pending} label={f.title} onchange={(v) => toggleFeature(f.id, v)} />
             {/if}
           </div>
         {/each}

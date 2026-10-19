@@ -21,9 +21,13 @@
     if (upd.phase === "idle") setTimeout(checkForUpdates, 2500);
   });
 
-  // First connection ever: a small moment to say the original settings are safe.
+  // First connection ever: a small moment to say the original settings are safe. Once only.
+  let savedToastShown = false;
   $effect(() => {
-    if (ui.state?.baseline.just_saved) toast("Your original settings are saved. You can always go back.", "success");
+    if (ui.state?.baseline.just_saved && !savedToastShown) {
+      savedToastShown = true;
+      toast("Your original settings are saved. You can always go back.", "success");
+    }
   });
 
   const s = $derived(ui.state);
