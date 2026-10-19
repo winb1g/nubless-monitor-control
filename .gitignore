@@ -1,0 +1,19 @@
+/target
+# never commit LG files or decoded dumps
+*.dll
+*.exe
+*.enc
+*.zip
+*.tsv
+dumps/
+out/
+bin/
+obj/
+# local VCP snapshots may reflect personal settings
+before*.json
+after*.json
+*.snapshot.json
+# desktop app
+node_modules/
+apps/desktop/dist/
+apps/desktop/src-tauri/gen/

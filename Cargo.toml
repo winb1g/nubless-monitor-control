@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/nubless-core", "crates/nubless-hw", "crates/nubless-cli", "apps/desktop/src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/winb1g/nubless-monitor-control"
+rust-version = "1.80"
+
+[workspace.dependencies]
+nubless-core = { path = "crates/nubless-core" }
+nubless-hw = { path = "crates/nubless-hw" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
