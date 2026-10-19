@@ -13,7 +13,8 @@ Each item needs a person with the monitor. Record results with the test card in 
 
 ## Encodings still unknown
 
-- [ ] **Picture mode** `0x15`: the value is the monitor's own, not LG's enum (see [research 09](research/09-ai-channel-and-picture-modes.md)). Known: Personalized 65, Gamer 1 45, Gamer 2 46. With AI Scene Optimization **off**, switch to Calibration1, Calibration2, Color Weakness, DCI-P3 and FPS in LG Switch while `nubless probe watch` runs.
+- [x] **Picture mode** `0x15`: all eight tile values read on the wire ([research 09](research/09-ai-channel-and-picture-modes.md)).
+- [ ] Switch picture mode from nubless (Labs): Gamer 1 and back, then Calibration1 with AI Scene Optimization on (expect the question, AI off, then the switch).
 - [ ] **Color temperature** `0x69`/`0x6A` and the *Manual* slider (reads 0 in LG Switch). Which code moves with the slider?
 - [x] **AI Scene Optimization**, **AI Sound**, **AI Upscaling**: decoded from LG Switch as sub-commands 2, 6 and 4 on VCP 0xA6 ([research 09](research/09-ai-channel-and-picture-modes.md)).
 - [ ] Turn on Labs and switch AI Scene Optimization and AI Sound from nubless once each, checking the OSD (first writes on 0xA6).

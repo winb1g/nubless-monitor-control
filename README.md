@@ -22,10 +22,12 @@ How both are enforced, in code and tests: [`SAFETY.md`](SAFETY.md).
 | Brightness, Contrast | `0x10`, `0x12` | read ✔ · write: safe policy (standard MCCS) |
 | Black Stabilizer, Response Time, Adaptive-Sync/VRR | `0xF9`, `0xF7`, `0xF8` | read ✔ · write: `--experimental` until round-trip confirmed |
 | Volume, Mute | `0x62`, `0x8D` | read ✔ · write: `--experimental` |
-| Picture mode, color temperature, RGB gains, aspect ratio, motion blur | various | read ✔ · not writable yet (encoding unconfirmed) |
+| Picture mode (all 8 tiles) | `0x15` | read ✔ · write: Labs, through the AI interlock |
+| AI Scene Optimization, AI Sound | `0xA6` sub-commands 2, 6 | decoded from LG Switch · Labs |
+| Color temperature, RGB gains, aspect ratio, motion blur, AI Upscaling | various | read ✔ · not writable yet (encoding unconfirmed) |
 | Input | `0x60` | read ✔ · **blocked**: switching input can cut the DDC link (dead end) |
 | Firmware level, usage hours, Dual-Mode state | `0xC9`, `0xC0`, `0xB1` | read-only |
-| AI Scene Optimization / AI Picture Mode / My Display Preset interlocks | — | rules engine done ([`docs/rules.md`](docs/rules.md)); the codes themselves are not mapped yet |
+| Interlocks (AI features, PBP/PIP, picture modes that block AI) | — | done, from LG Switch's own logic ([`docs/rules.md`](docs/rules.md)) |
 
 The full control map with evidence is in [`docs/research/05-screen-settings-panel.md`](docs/research/05-screen-settings-panel.md).
 

@@ -34,12 +34,18 @@ Confirmed on hardware: with AI Scene Optimization on, LG Switch could not switch
 
 LG Switch's tile list is keyed by `E_PICTUREMODE_NAME` and it passes that enum to its native service, which translates it into the monitor's own value before writing VCP 0x15. The translation lives in native code (`SmartMonitorControlService.exe` / `LGMonitorDDCCISDK.dll`) and was not decoded. Values observed on the wire:
 
-| Tile | LG enum | VCP 0x15 |
-|---|---:|---:|
-| Personalized Picture | 60 | 65 |
-| Gamer 1 | 39 | 45 |
-| Gamer 2 | 40 | 46 |
-| Calibration1, Calibration2, Color Weakness, DCI-P3, FPS | 18, 19, 30, 25, 43 | not observed yet |
+| Tile | LG enum | VCP 0x15 | AI allowed |
+|---|---:|---:|:-:|
+| Personalized Picture | 60 | 65 | yes |
+| Gamer 1 | 39 | 45 | yes |
+| Gamer 2 | 40 | 46 | yes |
+| Calibration1 | 18 | 18 | no |
+| Calibration2 | 19 | 19 | no |
+| Color Weakness | 30 | 6 | no |
+| DCI-P3 | 25 | 25 | no |
+| FPS | 43 | 30 | yes |
+
+All eight read with `nubless probe watch --codes 0x15,0xA6` while switching tiles in LG Switch. The same capture shows LG Switch writing `0x0201` to turn AI Scene Optimization off and `0x0202` to turn it on, confirming the sub-command encoding on the wire.
 
 Each picture mode keeps its own brightness, black stabilizer, colour temperature and sharpness (`0x87`, answered though undeclared): switching Personalized → Gamer 1 changed all of them.
 

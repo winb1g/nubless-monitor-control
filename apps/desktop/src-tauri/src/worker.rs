@@ -503,17 +503,31 @@ impl Worker {
         }
     }
 
-    /// Switch picture mode through the AI interlock. Demo only until the raw
-    /// values of every tile are mapped.
+    /// Switch picture mode through the AI interlock: if AI Scene Optimization is
+    /// on and the new mode can't use it, it is turned off first (after asking),
+    /// and turned back on if the mode switch then fails.
     fn picture_mode(&mut self, label: &str, confirmed: bool) -> FeatureOutcome {
-        if !self.conn.as_ref().is_some_and(|c| c.demo) {
+        let demo = self.conn.as_ref().is_some_and(|c| c.demo);
+        let Some(raw) = PROFILE.control("picture-mode").and_then(|c| match c.kind {
+            nubless_core::profile::ValueKind::Choice { choices } => {
+                choices.iter().find(|ch| ch.label == label).map(|ch| ch.raw)
+            }
+            _ => None,
+        }) else {
             return FeatureOutcome::Blocked {
-                reason: "Picture modes aren't fully mapped yet, so nubless can't switch them on your monitor. Try it with the demo monitor.".into(),
+                reason: format!("{label} isn't a picture mode nubless knows."),
+                state: self.state(),
+            };
+        };
+        if !demo && !self.labs {
+            return FeatureOutcome::Blocked {
+                reason: "Turn on Labs to switch picture modes from nubless. Every mode's value is known, but nubless hasn't switched one on real hardware yet.".into(),
                 state: self.state(),
             };
         }
+        let current = self.effective_features();
         let allows_ai = AI_CAPABLE_PICTURE_MODES.contains(&label);
-        let next = match rules::decide_picture_mode(self.effective_features(), label, allows_ai) {
+        let next = match rules::decide_picture_mode(current, label, allows_ai) {
             Decision::Apply { next, .. } => next,
             Decision::Confirm { next, .. } if confirmed => next,
             Decision::Confirm { question, .. } => {
@@ -528,11 +542,37 @@ impl Worker {
                 }
             }
         };
-        self.features = FeatureState {
-            picture_mode_blocks_ai: false,
-            ..next
-        };
-        self.demo_picture = Some(label.to_string());
+        if demo {
+            self.features = FeatureState {
+                picture_mode_blocks_ai: false,
+                ..next
+            };
+            self.demo_picture = Some(label.to_string());
+        } else {
+            let ai_off_first = current.ai_scene_optimization && !next.ai_scene_optimization;
+            if ai_off_first {
+                if let Err(reason) = self.set("ai-scene-optimization", 1) {
+                    return FeatureOutcome::Blocked {
+                        reason,
+                        state: self.state(),
+                    };
+                }
+            }
+            if let Err(e) = self.set("picture-mode", raw) {
+                if ai_off_first {
+                    // Put things back the way they were.
+                    let _ = self.set("ai-scene-optimization", 2);
+                }
+                return FeatureOutcome::Blocked {
+                    reason: format!("{label} couldn't be applied: {e}"),
+                    state: self.state(),
+                };
+            }
+            // Each picture mode has its own brightness, contrast and so on.
+            if let Some(c) = &mut self.conn {
+                c.refresh();
+            }
+        }
         FeatureOutcome::Applied {
             state: self.state(),
             notice: None,
@@ -811,7 +851,7 @@ mod tests {
             .as_mut()
             .unwrap()
             .values
-            .insert("picture-mode", Some(0xFF12)); // Calibration1
+            .insert("picture-mode", Some(18)); // Calibration1
         w.feature(Feature::AiSceneOptimization, false, false);
         assert!(matches!(
             w.feature(Feature::AiSceneOptimization, true, false),
@@ -867,5 +907,47 @@ mod tests {
         assert_eq!(value(&mut w, "brightness"), Some(50));
         let journal = &w.conn.as_ref().unwrap().ctl.journal().entries;
         assert_eq!(journal.len(), 1, "only one write reached the monitor");
+    }
+
+    #[test]
+    fn hardware_picture_modes_need_labs() {
+        let mut w = hardware_worker("pm-safe", false);
+        assert!(matches!(
+            w.picture_mode("Gamer 1", false),
+            FeatureOutcome::Blocked { .. }
+        ));
+        assert_eq!(value(&mut w, "picture-mode"), Some(65));
+    }
+
+    #[test]
+    fn hardware_switch_to_calibration_turns_ai_off_first() {
+        let mut w = hardware_worker("pm-cal", true);
+        assert!(w.state().features.state.ai_scene_optimization);
+        assert!(matches!(
+            w.picture_mode("Calibration1", false),
+            FeatureOutcome::Confirm { .. }
+        ));
+        assert_eq!(
+            value(&mut w, "picture-mode"),
+            Some(65),
+            "nothing sent before the answer"
+        );
+        assert!(matches!(
+            w.picture_mode("Calibration1", true),
+            FeatureOutcome::Applied { .. }
+        ));
+        let s = w.state();
+        assert_eq!(s.features.picture_mode.as_deref(), Some("Calibration1"));
+        assert!(!s.features.state.ai_scene_optimization);
+        assert!(s.features.state.picture_mode_blocks_ai);
+        // Back to an AI mode: AI Scene Optimization can be turned on again.
+        assert!(matches!(
+            w.picture_mode("Gamer 1", false),
+            FeatureOutcome::Applied { .. }
+        ));
+        assert!(matches!(
+            w.feature(Feature::AiSceneOptimization, true, false),
+            FeatureOutcome::Applied { .. }
+        ));
     }
 }

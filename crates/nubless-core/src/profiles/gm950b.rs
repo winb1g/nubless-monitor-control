@@ -39,11 +39,10 @@ const ADAPTIVE_SYNC: &[Choice] = &[
     },
 ];
 
-/// Tiles LG Switch shows. VCP 0x15 does NOT take LG's `E_PICTUREMODE_NAME` values:
-/// LG Switch sends the enum to its native service, which translates it. Raw
-/// values below were observed on a real unit (fw 3.05) while switching in LG
-/// Switch; tiles not observed yet carry a placeholder (0xFF00 | enum) that no
-/// reading can match, so they never show as current and are never written.
+/// Tiles LG Switch shows, with the values VCP 0x15 uses on the wire. These are
+/// the monitor's own numbers, not LG's `E_PICTUREMODE_NAME` enum (LG Switch's
+/// native service translates). All eight were read on a real unit (fw 3.05)
+/// while switching tiles in LG Switch (docs/research/09).
 const PICTURE_MODES: &[Choice] = &[
     Choice {
         raw: 65,
@@ -58,23 +57,23 @@ const PICTURE_MODES: &[Choice] = &[
         label: "Gamer 2",
     },
     Choice {
-        raw: 0xFF12,
+        raw: 18,
         label: "Calibration1",
     },
     Choice {
-        raw: 0xFF13,
+        raw: 19,
         label: "Calibration2",
     },
     Choice {
-        raw: 0xFF1E,
+        raw: 6,
         label: "Color Weakness",
     },
     Choice {
-        raw: 0xFF19,
+        raw: 25,
         label: "DCI-P3",
     },
     Choice {
-        raw: 0xFF2B,
+        raw: 30,
         label: "FPS",
     },
 ];
@@ -188,8 +187,8 @@ pub const CONTROLS: &[Control] = &[
     },
     Control {
         id: "picture-mode", label: "Picture Mode", vcp: 0x15, kind: ValueKind::Choice { choices: PICTURE_MODES },
-        confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Supported list from bitmasks 0x4D/0x4E/0x4F matches all tiles. Raw values differ from LG's enum (LG's native service translates); observed Personalized 65, Gamer 1 45, Gamer 2 46. Other tiles not observed yet.",
+        confidence: ReadConfirmed, standard: false, writable: true, risk: Risk::Visibility,
+        note: "All eight tiles read on the wire while switching in LG Switch. LG-private, so writing needs Labs until a nubless write is confirmed. Switching goes through the AI interlock: non-AI modes need AI Scene Optimization off.",
     },
     Control {
         id: "color-temperature", label: "Color temperature", vcp: 0x69, kind: ValueKind::Info,

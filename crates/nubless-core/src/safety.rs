@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn candidates_and_dead_ends_are_never_written() {
-        for id in ["picture-mode", "input", "red-gain", "firmware", "dual-mode"] {
+        for id in ["input", "red-gain", "firmware", "dual-mode", "ai-upscaling"] {
             let c = PROFILE.control(id).unwrap();
             for v in [0u16, 1, 2, 3, 0x0F, 18, 50] {
                 assert!(
@@ -256,6 +256,17 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn picture_mode_needs_labs_and_a_known_tile() {
+        let c = PROFILE.control("picture-mode").unwrap();
+        assert!(check_write(c, 18, &caps(), WritePolicy::Safe).is_err());
+        assert!(check_write(c, 18, &caps(), WritePolicy::Experimental).is_ok());
+        assert!(
+            check_write(c, 60, &caps(), WritePolicy::Experimental).is_err(),
+            "LG enum values are not wire values"
+        );
     }
 
     #[test]
