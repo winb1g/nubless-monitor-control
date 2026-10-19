@@ -388,7 +388,8 @@ impl Worker {
             demo: true,
             baseline,
             baseline_error: None,
-            just_saved: false,
+            // The simulated monitor's settings are captured fresh on every connect.
+            just_saved: true,
             values: Default::default(),
         };
         conn.refresh();
@@ -682,7 +683,9 @@ impl Worker {
         let baseline = BaselineView {
             saved: conn.baseline.is_some(),
             values: conn.baseline.as_ref().map_or(0, |b| b.values.len()),
-            just_saved: std::mem::take(&mut conn.just_saved),
+            // Kept for the whole connection: taking it on first read let the
+            // hidden tray window swallow it before the main window asked.
+            just_saved: conn.just_saved,
             error: conn.baseline_error.clone(),
             saved_in: conn
                 .baseline

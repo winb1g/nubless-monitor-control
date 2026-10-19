@@ -56,7 +56,8 @@ pub struct FeaturesView {
 pub struct BaselineView {
     pub saved: bool,
     pub values: usize,
-    /// Saved during this connection (first run): the UI celebrates once.
+    /// Saved during this connection (first run, or any demo connect): the
+    /// main window celebrates once.
     pub just_saved: bool,
     /// Picture mode the originals belong to ("Personalized Picture").
     pub saved_in: Option<String>,
