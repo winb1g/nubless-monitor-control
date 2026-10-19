@@ -4,10 +4,12 @@
   import { CircleCheck, Info, TriangleAlert, CircleX } from "@lucide/svelte";
   import { ui, dismiss } from "../store.svelte";
 
+  let { compact = false }: { compact?: boolean } = $props();
+
   const icons = { success: CircleCheck, info: Info, warn: TriangleAlert, error: CircleX };
 </script>
 
-<div class="stack" aria-live="polite">
+<div class="stack" class:compact aria-live="polite">
   {#each ui.toasts as t (t.id)}
     {@const Icon = icons[t.tone]}
     <div class="toast {t.tone}" animate:flip={{ duration: 220 }} in:fly={{ y: 16, duration: 260 }} out:fly={{ y: 8, duration: 160 }}>
@@ -39,6 +41,14 @@
     gap: 8px;
     z-index: 50;
     pointer-events: none;
+  }
+  .compact {
+    bottom: 64px;
+    width: calc(100% - 40px);
+  }
+  .compact .toast {
+    max-width: 100%;
+    font-size: 12.5px;
   }
   .toast {
     pointer-events: auto;

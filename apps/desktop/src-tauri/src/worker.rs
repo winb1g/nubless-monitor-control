@@ -114,6 +114,11 @@ struct Worker {
     labs: bool,
     error: Option<String>,
     settings_path: PathBuf,
+    /// Values need re-reading (after a picture-mode switch). Done after the
+    /// reply is sent, so the UI isn't kept waiting on ~25 DDC/CI reads.
+    refresh_pending: bool,
+    /// Pushes a fresh state to every window (set up by lib.rs).
+    notify: Box<dyn Fn(&AppState) + Send>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
@@ -121,7 +126,7 @@ struct Settings {
     labs: bool,
 }
 
-pub fn spawn(force_demo: bool) -> Sender<Req> {
+pub fn spawn(force_demo: bool, notify: Box<dyn Fn(&AppState) + Send>) -> Sender<Req> {
     let (tx, rx) = channel();
     thread::Builder::new()
         .name("nubless-monitor".into())
@@ -139,6 +144,8 @@ pub fn spawn(force_demo: bool) -> Sender<Req> {
                 labs: settings.labs,
                 error: None,
                 settings_path,
+                refresh_pending: false,
+                notify,
             };
             if force_demo {
                 w.connect_demo();
@@ -185,6 +192,14 @@ impl Worker {
                     }
                     other => self.handle(other),
                 }
+            }
+            if self.refresh_pending {
+                self.refresh_pending = false;
+                if let Some(c) = &mut self.conn {
+                    c.refresh();
+                }
+                let s = self.state();
+                (self.notify)(&s);
             }
         }
     }
@@ -568,10 +583,9 @@ impl Worker {
                     state: self.state(),
                 };
             }
-            // Each picture mode has its own brightness, contrast and so on.
-            if let Some(c) = &mut self.conn {
-                c.refresh();
-            }
+            // Each picture mode has its own brightness, contrast and so on:
+            // re-read them right after replying.
+            self.refresh_pending = true;
         }
         FeatureOutcome::Applied {
             state: self.state(),
@@ -652,6 +666,7 @@ impl Worker {
                 lg_switch_running,
                 error: self.error.clone(),
                 version,
+                refreshing: false,
             };
         };
         let controls = PROFILE
@@ -682,6 +697,7 @@ impl Worker {
             lg_switch_running,
             error: self.error.clone(),
             version,
+            refreshing: self.refresh_pending,
         }
     }
 }
@@ -701,6 +717,8 @@ mod tests {
             settings_path: std::env::temp_dir()
                 .join(format!("nubless-worker-{}-{name}", std::process::id()))
                 .join("settings.json"),
+            refresh_pending: false,
+            notify: Box::new(|_| {}),
         };
         w.connect_demo();
         w
@@ -949,5 +967,34 @@ mod tests {
             w.feature(Feature::AiSceneOptimization, true, false),
             FeatureOutcome::Applied { .. }
         ));
+    }
+
+    #[test]
+    fn picture_switch_replies_first_then_refreshes_and_notifies() {
+        let mut w = hardware_worker("pm-bg", true);
+        let notified = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let n = notified.clone();
+        w.notify = Box::new(move |s| {
+            assert!(!s.refreshing);
+            n.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        });
+        let (tx, rx) = channel();
+        let (rtx, rrx) = channel();
+        tx.send(Req::PictureMode {
+            label: "Gamer 1".into(),
+            confirmed: false,
+            reply: rtx,
+        })
+        .unwrap();
+        drop(tx);
+        w.run(rx);
+        match rrx.recv().unwrap() {
+            FeatureOutcome::Applied { state, .. } => {
+                assert!(state.refreshing, "reply comes before the re-read")
+            }
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(notified.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert!(!w.refresh_pending);
     }
 }

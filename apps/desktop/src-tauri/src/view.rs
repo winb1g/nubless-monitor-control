@@ -76,6 +76,8 @@ pub struct AppState {
     pub lg_switch_running: bool,
     pub error: Option<String>,
     pub version: &'static str,
+    /// Values are being re-read (after a picture-mode switch).
+    pub refreshing: bool,
 }
 
 pub fn group_of(id: &str) -> &'static str {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fly } from "svelte/transition";
   import { Maximize2, Power, Search } from "@lucide/svelte";
-  import { ui, rescan } from "../store.svelte";
+  import { ui, rescan, pickPictureMode } from "../store.svelte";
   import { api } from "../api";
   import Slider from "../components/Slider.svelte";
   import Lock from "../components/Lock.svelte";
@@ -39,10 +39,18 @@
     {#if pm}
       <div class="pmhead"><span>Picture mode</span>{#if !pm.enabled}<Lock control={pm} />{/if}</div>
       <div class="chips">
-        {#each pm.choices.slice(0, 4) as c (c.raw)}
-          <button class="chip" class:active={pm.value === c.raw} disabled={!pm.enabled}>{c.label}</button>
+        {#each pm.choices as c (c.raw)}
+          {@const current = ui.switching ? ui.switching === c.label : (s.features.picture_mode ?? null) === c.label || pm.value === c.raw}
+          <button
+            class="chip"
+            class:active={current}
+            class:pending={ui.switching === c.label}
+            disabled={!s.demo && !pm.enabled}
+            onclick={() => !current && pickPictureMode(c.label)}>{c.label}</button
+          >
         {/each}
       </div>
+      {#if ui.switching || s.refreshing}<p class="loading small">Loading {ui.switching ?? s.features.picture_mode} settings…</p>{/if}
     {/if}
   {/if}
 
@@ -111,6 +119,8 @@
   .chips {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    max-height: 168px;
+    overflow-y: auto;
     gap: 6px;
   }
   .chip {
@@ -125,6 +135,19 @@
   .chip.active {
     box-shadow: 0 0 0 2px var(--accent);
     color: var(--text);
+  }
+  .chip.pending {
+    animation: breathe 0.9s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    50% {
+      box-shadow: 0 0 0 2px var(--accent-2);
+    }
+  }
+  .loading {
+    margin: 8px 0 0;
+    color: var(--accent-ink);
+    font-weight: 600;
   }
   .chip:disabled {
     opacity: 0.6;

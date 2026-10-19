@@ -54,6 +54,8 @@ export interface AppState {
   lg_switch_running: boolean;
   error: string | null;
   version: string;
+  /** Values are being re-read after a picture-mode switch. */
+  refreshing: boolean;
 }
 
 export interface Outcome {

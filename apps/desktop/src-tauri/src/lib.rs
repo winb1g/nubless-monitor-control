@@ -201,7 +201,16 @@ fn toggle_popover(app: &AppHandle, rect: Rect) {
 pub fn run() {
     let demo =
         std::env::args().any(|a| a == "--demo") || std::env::var_os("NUBLESS_DEMO").is_some();
-    let backend = worker::spawn(demo);
+    // The monitor thread starts before Tauri, so it reaches the app through this cell.
+    static APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
+    let backend = worker::spawn(
+        demo,
+        Box::new(|state| {
+            if let Some(app) = APP.get() {
+                broadcast(app, state);
+            }
+        }),
+    );
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -226,6 +235,7 @@ pub fn run() {
             quit
         ])
         .setup(|app| {
+            let _ = APP.set(app.handle().clone());
             let open = MenuItem::with_id(app, "open", "Open nubless", true, None::<&str>)?;
             let updates =
                 MenuItem::with_id(app, "updates", "Check for updates", true, None::<&str>)?;
@@ -259,6 +269,18 @@ pub fn run() {
                 })
                 .build(app)?;
             Ok(())
+        })
+        // Show the main window from here once its page has loaded (it starts
+        // hidden to avoid a blank flash). Showing it from the page's own script
+        // left the window ignoring input on first launch.
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main"
+                && payload.event() == tauri::webview::PageLoadEvent::Finished
+            {
+                let w = webview.window();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
         })
         .on_window_event(|window, event| match (window.label(), event) {
             // Closing the window keeps nubless in the tray.

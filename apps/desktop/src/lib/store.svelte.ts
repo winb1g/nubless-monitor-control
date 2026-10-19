@@ -26,6 +26,8 @@ export const ui = $state({
   toasts: [] as Toast[],
   dialog: null as Dialog | null,
   updateBadge: false,
+  /** Picture mode being switched to, shown at once while the monitor catches up. */
+  switching: null as string | null,
 });
 
 let toastId = 0;
@@ -117,14 +119,22 @@ export async function toggleFeature(feature: Feature, on: boolean) {
 
 /** Switch picture mode through the AI interlock, asking when the rules say so. */
 export async function pickPictureMode(label: string) {
+  if (ui.switching) return;
   const b = await api();
-  let out: FeatureOutcome | undefined = await guarded(() => b.pickPictureMode(label, false));
-  if (out?.kind === "confirm") {
-    const ok = await ask({ title: `Switch to ${label}?`, body: out.question, confirm: "Switch", cancel: "Not now" });
-    if (!ok) return;
-    out = await guarded(() => b.pickPictureMode(label, true));
+  ui.switching = label;
+  try {
+    let out: FeatureOutcome | undefined = await guarded(() => b.pickPictureMode(label, false));
+    if (out?.kind === "confirm") {
+      ui.switching = null;
+      const ok = await ask({ title: `Switch to ${label}?`, body: out.question, confirm: "Switch", cancel: "Not now" });
+      if (!ok) return;
+      ui.switching = label;
+      out = await guarded(() => b.pickPictureMode(label, true));
+    }
+    handleFeature(out);
+  } finally {
+    ui.switching = null;
   }
-  handleFeature(out);
 }
 
 export async function simulatePbp(on: boolean) {

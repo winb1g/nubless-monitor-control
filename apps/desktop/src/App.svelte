@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { init, toast } from "./lib/store.svelte";
-  import { inTauri } from "./lib/api";
   import { applyTheme } from "./lib/theme.svelte";
   import Shell from "./lib/Shell.svelte";
   import Tray from "./lib/pages/Tray.svelte";
@@ -18,11 +17,6 @@
     } catch (e) {
       toast(`nubless couldn't start talking to your monitor: ${e}`, "error");
     }
-    // The main window starts hidden to avoid a blank flash; show it once painted.
-    if (inTauri && !isTray) {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      requestAnimationFrame(() => getCurrentWindow().show());
-    }
   });
 </script>
 
@@ -30,6 +24,6 @@
   <Tray />
 {:else}
   <Shell />
-  <Toasts />
-  <DialogHost />
 {/if}
+<Toasts compact={isTray} />
+<DialogHost />

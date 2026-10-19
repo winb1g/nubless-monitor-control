@@ -59,6 +59,7 @@ export function previewBackend() {
   let features: FeatureState = { ai_scene_optimization: false, ai_picture_mode: false, my_display_preset: false, pbp: false, hdr: false, picture_mode_blocks_ai: false };
   const AI_MODES = ["Personalized Picture", "Gamer 1", "Gamer 2", "FPS"];
   let picture = "Personalized Picture";
+  let refreshing = false;
   const history: [string, number][] = [];
   const listeners: ((s: AppState) => void)[] = [];
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -81,6 +82,7 @@ export function previewBackend() {
     lg_switch_running: false,
     error: null,
     version: "0.1.0",
+    refreshing,
   });
   const emit = () => listeners.forEach((l) => l(state()));
 
@@ -120,8 +122,10 @@ export function previewBackend() {
         return { kind: "confirm", question: `${label} doesn't work with ${list(on.map((f) => names[f]))}. Turn ${on.length === 1 ? "it" : "them"} off and switch to ${label}?` };
       if (!allows) features = { ...features, ai_scene_optimization: false, ai_picture_mode: false };
       features = { ...features, picture_mode_blocks_ai: !allows };
+      await wait(500);
       picture = label;
-      emit();
+      refreshing = true;
+      setTimeout(() => { refreshing = false; emit(); }, 2500);
       return { kind: "applied", state: state(), notice: null };
     },
     async simulatePbp(on: boolean): Promise<FeatureOutcome> {

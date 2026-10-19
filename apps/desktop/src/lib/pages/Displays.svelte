@@ -30,6 +30,8 @@
   const pbpReason = "Not available while PBP/PIP is on. Turn PBP/PIP off first.";
   const mute = $derived(byId["mute"]);
   const aiSound = $derived(byId["ai-sound"]);
+  /** A picture-mode switch is in flight or its values are being re-read. */
+  const loading = $derived(!!ui.switching || !!s?.refreshing);
 
   /** Why a smart feature can't be turned on right now, if it can't. */
   function featureLock(id: Feature, on: boolean): { reason: string; unlock: "labs" | null } | null {
@@ -146,8 +148,8 @@
           <div class="tiles">
             {#each pm.choices as c (c.raw)}
               {@const Icon = tileIcons[c.label] ?? Image}
-              {@const current = (s.features.picture_mode ?? null) === c.label || pm.value === c.raw}
-              <button class="tile" class:active={current} disabled={!s.demo && !pm.enabled} onclick={() => !current && pickPictureMode(c.label)}>
+              {@const current = ui.switching ? ui.switching === c.label : (s.features.picture_mode ?? null) === c.label || pm.value === c.raw}
+              <button class="tile" class:active={current} class:pending={ui.switching === c.label} disabled={!s.demo && !pm.enabled} onclick={() => !current && pickPictureMode(c.label)}>
                 <span class="ticon"><Icon size={20} /></span>
                 <span>{c.label}</span>
                 {#if s.features.ai_capable_modes.includes(c.label)}<span class="ai" title="Works with AI Scene Optimization"><Sparkles size={11} /></span>{/if}
@@ -157,23 +159,23 @@
         </section>
       {/if}
 
-      <section class="card" in:fly={{ y: 14, duration: 320, delay: 80 }}>
-        <div class="title"><h2>Picture</h2></div>
+      <section class="card" class:loading in:fly={{ y: 14, duration: 320, delay: 80 }}>
+        <div class="title"><h2>Picture</h2>{#if loading}<span class="hint loading-hint" in:fly={{ y: -4, duration: 200 }}>Loading {ui.switching ?? s.features.picture_mode ?? "new"} settings…</span>{/if}</div>
         {#each group("picture").filter((c) => c.kind === "range") as c (c.id)}<Slider control={c} />{/each}
         {#each group("picture").filter((c) => c.kind !== "range") as c (c.id)}
           <div class="inforow"><span>{c.label}</span>{#if c.enabled}<span>{c.display}</span>{:else}<Lock control={c} />{/if}</div>
         {/each}
       </section>
 
-      <section class="card" in:fly={{ y: 14, duration: 320, delay: 120 }}>
-        <div class="title"><h2>Gaming</h2></div>
+      <section class="card" class:loading in:fly={{ y: 14, duration: 320, delay: 120 }}>
+        <div class="title"><h2>Gaming</h2>{#if loading}<span class="hint loading-hint" in:fly={{ y: -4, duration: 200 }}>Loading {ui.switching ?? s.features.picture_mode ?? "new"} settings…</span>{/if}</div>
         {#each group("game").filter((c) => c.kind === "choice") as c (c.id)}<Segmented control={c} />{/each}
         {#each group("game").filter((c) => c.kind !== "choice") as c (c.id)}
           <div class="inforow"><span>{c.label}</span>{#if c.enabled}<span>{c.display}</span>{:else}<Lock control={c} />{/if}</div>
         {/each}
       </section>
 
-      <section class="card" in:fly={{ y: 14, duration: 320, delay: 160 }}>
+      <section class="card" class:loading in:fly={{ y: 14, duration: 320, delay: 160 }}>
         <div class="title"><h2>Sound</h2></div>
         {#if byId["volume"]}<Slider control={byId["volume"]} />{/if}
         {#if aiSound}
@@ -460,6 +462,54 @@
     right: 8px;
     color: var(--accent);
     opacity: 0.8;
+  }
+  .tile.pending::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 18px;
+    border: 2px solid transparent;
+    border-top-color: var(--accent-2);
+    border-right-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .card.loading {
+    position: relative;
+    overflow: hidden;
+  }
+  .card.loading :global(.slider),
+  .card.loading :global(.row),
+  .card.loading .inforow {
+    pointer-events: none;
+    opacity: 0.55;
+    transition: opacity var(--base) var(--ease);
+  }
+  .card.loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--accent) 10%, transparent) 50%, transparent 70%);
+    background-size: 220% 100%;
+    animation: sheen 1.1s var(--ease) infinite;
+  }
+  @keyframes sheen {
+    from {
+      background-position: 120% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+  .loading-hint {
+    color: var(--accent-ink);
+    font-weight: 600;
   }
   .tile:disabled {
     cursor: default;
