@@ -36,9 +36,10 @@ nubless undo; nubless undo                  # both go back
 
 ### Response Time `0xF7`
 
-We assume raw `3 / 2 / 1` = Normal / Fast / Faster, and that there is no Off. **Open the OSD list first and write down every option it offers.**
+The OSD offers **Off, Normal, Fast, Faster**. We assume raw `0 / 3 / 2 / 1` (Off = 0 from LG's enum and the monitor's own `F7(00 01 02 03)`; the rest from the same enum, label order inferred).
 
 ```
+nubless --experimental set response-time off      -> y    # OSD says: ______ (raw 0)
 nubless --experimental set response-time normal   -> y    # OSD says: ______ (raw 3)
 nubless --experimental set response-time fast     -> y    # OSD says: ______ (raw 2)
 nubless --experimental set response-time faster   -> y    # OSD says: ______ (raw 1)
@@ -51,7 +52,7 @@ Record whether the picture blanked or flickered and for how long.
 
 ### Adaptive-Sync / VRR `0xF8`
 
-We assume raw `0 / 2 / 3` = Off / Basic / Extended. Do this with the PC's display connected over DisplayPort.
+The OSD offers Extended, Basic, Off. We assume raw `0 / 2 / 3` = Off / Basic / Extended. Do this with the PC's display connected over DisplayPort.
 
 ```
 nubless --experimental set adaptive-sync off      -> y    # OSD says: ______ (raw 0)
@@ -72,7 +73,17 @@ nubless --experimental set black-stabilizer 51    -> y    # OSD shows ___ (is th
 nubless --experimental set black-stabilizer 100   -> y    # OSD shows ___
 ```
 
-If the OSD's maximum is not 100, or the numbers don't match 1:1, **stop and report it**: the UI range is wrong.
+The OSD list did not record this slider's scale. If its maximum is not 100, or the numbers don't match 1:1, **stop and report it**: the UI range is wrong.
+
+### Read-only mapping (no writes: safe to do first)
+
+These only need `nubless probe` and the OSD; see [`research/10-osd-inventory.md`](research/10-osd-inventory.md) for the full list of what is still unmapped. Highest value first:
+
+1. **Picture modes** `0x15`: select RTS, Vivid, Reader, HDR Effect, sRGB and Max Brightness in the OSD one at a time and run `nubless get picture-mode` (or `probe diff`). Six new raw values unlock all 14 modes.
+2. **Aspect Ratio** `0xF5`: Full Wide, Original, Just Scan, then `nubless get aspect-ratio` for each.
+3. **Dual-Mode** `0xB1`: all four options, then `nubless get dual-mode`.
+4. **AI Upscaling**: write down its OSD options, then `nubless --experimental get ai-upscaling` in each.
+5. Unmapped settings (Local Dimming, Sharpness, Crosshair, FPS Counter, Bass Boost, Sound Out, Auto Input Switch, Hexagon Lighting): one `probe save` / `probe diff` pair per option.
 
 ### The "Keep this change?" prompt in the app
 

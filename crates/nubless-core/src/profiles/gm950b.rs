@@ -11,6 +11,10 @@ pub const CAPABILITIES_SAMPLE: &str = "(prot(monitor)type(lcd)model(WK95U)cmds(0
 
 const RESPONSE_TIME: &[Choice] = &[
     Choice {
+        raw: 0,
+        label: "Off",
+    },
+    Choice {
         raw: 3,
         label: "Normal",
     },
@@ -120,7 +124,7 @@ const INPUTS: &[Choice] = &[
     },
     Choice {
         raw: 0x10,
-        label: "DisplayPort 2 / USB-C",
+        label: "USB-C",
     },
     Choice {
         raw: 0x11,
@@ -143,16 +147,10 @@ const MUTE: &[Choice] = &[
     },
 ];
 
-const ASPECT: &[Choice] = &[
-    Choice {
-        raw: 1,
-        label: "16:9",
-    },
-    Choice {
-        raw: 2,
-        label: "21:9",
-    },
-];
+const ASPECT: &[Choice] = &[Choice {
+    raw: 1,
+    label: "Full Wide",
+}];
 
 const fn range(min: u16, max: u16) -> ValueKind {
     ValueKind::Range { min, max }
@@ -178,7 +176,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "response-time", label: "Response Time", vcp: 0xF7, kind: ValueKind::Choice { choices: RESPONSE_TIME },
         confidence: Strong, standard: false, writable: true, risk: Risk::Resync,
-        note: "LG enum HIGH=1, MIDDLE=2, LOW=3; reads 2 while UI shows Fast. Label order inferred.",
+        note: "LG enum OFF=0, HIGH=1, MIDDLE=2, LOW=3; the capabilities string declares F7(00 01 02 03) and the OSD offers Off, Normal, Fast, Faster. Reads 2 while UI shows Fast. Label order (and Off = 0) inferred, not yet written.",
     },
     Control {
         id: "adaptive-sync", label: "Adaptive-Sync/VRR", vcp: 0xF8, kind: ValueKind::Choice { choices: ADAPTIVE_SYNC },
@@ -213,7 +211,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "aspect-ratio", label: "Aspect Ratio", vcp: 0xF5, kind: ValueKind::Choice { choices: ASPECT },
         confidence: Candidate, standard: false, writable: false, risk: Risk::Resync,
-        note: "LG RATIO_VALUE reads 1 = 16:9; list 0xF4 = 16:9, 21:9.",
+        note: "LG RATIO_VALUE; reads 1 (the OSD's Full Wide, by default). The capabilities string declares F5(01 02 03 04) and the OSD offers Full Wide, Original and Just Scan, so 2-4 are not named yet.",
     },
     Control {
         id: "motion-blur", label: "Motion Blur Reduction", vcp: 0xFA, kind: ValueKind::Info,

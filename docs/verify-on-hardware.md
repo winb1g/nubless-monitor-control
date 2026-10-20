@@ -7,7 +7,7 @@ Each item needs a person with the monitor. The exact commands and what to look f
 - [x] **Brightness** `0x10`: `nubless set brightness 79` showed 79 in the OSD; `nubless undo` restored 80. Firmware 3.05, 2026-10-18, LG services running alongside. First hardware write.
 - [ ] **Contrast** `0x12`: same.
 - [ ] **Volume / mute** `0x62` / `0x8D`: compare with the OSD, then write and read back.
-- [ ] **Response Time** `0xF7`: which raw value is *Normal / Fast / Faster*? We assume 3 / 2 / 1. Is there an *Off* in the OSD?
+- [ ] **Response Time** `0xF7`: which raw value is *Normal / Fast / Faster*? We assume 3 / 2 / 1. The OSD has an *Off* as well (assumed 0, matching LG's enum and the capabilities string): confirm.
 - [ ] **Adaptive-Sync/VRR** `0xF8`: Off / Basic / Extended = 0 / 2 / 3? Does the screen blank while it switches?
 - [ ] **Black Stabilizer** `0xF9`: is the OSD range 0–100? Does writing 51 show 51?
 

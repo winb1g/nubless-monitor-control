@@ -21,7 +21,7 @@ function controls(labs: boolean, v: Record<string, number>): ControlView[] {
     c({ id: "brightness", label: "Brightness", group: "picture", kind: "range", min: 0, max: 100 }),
     c({ id: "contrast", label: "Contrast", group: "picture", kind: "range", min: 20, max: 100 }),
     strong(c({ id: "black-stabilizer", label: "Black Stabilizer", group: "picture", kind: "range", min: 0, max: 100 })),
-    strong(c({ id: "response-time", label: "Response Time", group: "game", kind: "choice", choices: [{ raw: 3, label: "Normal" }, { raw: 2, label: "Fast" }, { raw: 1, label: "Faster" }] })),
+    strong(c({ id: "response-time", label: "Response Time", group: "game", kind: "choice", choices: [{ raw: 0, label: "Off" }, { raw: 3, label: "Normal" }, { raw: 2, label: "Fast" }, { raw: 1, label: "Faster" }] })),
     strong(c({ id: "adaptive-sync", label: "Adaptive-Sync/VRR", group: "game", kind: "choice", choices: [{ raw: 0, label: "Off" }, { raw: 2, label: "Basic" }, { raw: 3, label: "Extended" }] })),
     c({ id: "picture-mode", label: "Picture Mode", group: "mode", kind: "choice", choices: [
       { raw: 65, label: "Personalized Picture" }, { raw: 45, label: "Gamer 1" }, { raw: 46, label: "Gamer 2" }, { raw: 18, label: "Calibration1" },
