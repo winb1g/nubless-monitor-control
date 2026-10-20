@@ -100,16 +100,17 @@ const OFF_ON: &[Choice] = &[
     },
 ];
 
-/// LG's enum names for AI Upscaling. Unconfirmed: a real unit reported 1 while
-/// LG Switch showed "Off".
+/// AI Upscaling. LG's enum has three values (1, 2, 4) and the OSD offers three
+/// options (Off, Low, High); a real unit read 1 while LG Switch showed Off, so
+/// 1 = Off, and LG's "Middle" (2) is the OSD's Low. Unconfirmed: read-only.
 const UPSCALING: &[Choice] = &[
     Choice {
         raw: 1,
-        label: "Low",
+        label: "Off",
     },
     Choice {
         raw: 2,
-        label: "Middle",
+        label: "Low",
     },
     Choice {
         raw: 4,
@@ -171,7 +172,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "black-stabilizer", label: "Black Stabilizer", vcp: 0xF9, kind: range(0, 100),
         confidence: Strong, standard: false, writable: true, risk: Risk::Visibility,
-        note: "LG MANUFACTURER_BLACK_STABILIZER. Read-back 50 matched. Monitor reports max 255; UI range assumed 0-100 until write-confirmed.",
+        note: "LG MANUFACTURER_BLACK_STABILIZER. Read-back 50 matched. Monitor reports max 255; the OSD slider is 0-100 (checked by hand 2026-10-20), so the UI range is 0-100; the 1:1 write is not confirmed yet.",
     },
     Control {
         id: "response-time", label: "Response Time", vcp: 0xF7, kind: ValueKind::Choice { choices: RESPONSE_TIME },
@@ -234,7 +235,7 @@ pub const CONTROLS: &[Control] = &[
         id: "ai-upscaling", label: "AI Upscaling", vcp: 0xA6,
         kind: ValueKind::SubCommand { sub: 4, choices: UPSCALING },
         confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Sub-command 4 (eSoC_AIMODE_UPSCALLING): LG names 1 = Low, 2 = Middle, 4 = High, but a real unit answered 1 while LG Switch showed Off. Unavailable while PBP/PIP is on.",
+        note: "Sub-command 4 (eSoC_AIMODE_UPSCALLING): LG names 1 = Low, 2 = Middle, 4 = High; the OSD offers Off, Low, High and a real unit answered 1 while LG Switch showed Off, so we read 1 = Off, 2 = Low, 4 = High (inferred, not written). Unavailable while PBP/PIP is on.",
     },
     Control {
         id: "ai-sound", label: "AI Sound", vcp: 0xA6,

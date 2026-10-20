@@ -1,116 +1,67 @@
 # Hardware test cards: Labs controls
 
-One card per control that is still behind Labs (or only read-checked). Each takes a few minutes with a 27GM950B and its on-screen menu (OSD). A passing card is what lets a control leave Labs; see [Promoting a control](#promoting-a-control).
+One card per control that is still behind Labs. Everything below is done **in the app**, with the monitor's own on-screen menu (OSD) open next to it as the judge. A passing card is what lets a control leave Labs; see [Promoting a control](#promoting-a-control).
 
-The mock monitor, the fault tests and the browser tests already prove the *software* does the right thing with any answer the monitor gives. These cards only answer the questions software can't: **does this raw value mean what we think, and does the panel take it?**
+The mock monitor, the fault tests and the browser tests already prove the *software* does the right thing with any answer the monitor gives. These cards only answer what software can't: **does this raw value mean what we think, and does the panel take it?**
 
-## Before you start
+## Before you start (5 minutes)
 
 1. Quit LG Switch (its service also talks DDC/CI). DDC/CI must be on in the monitor's menu.
-2. `nubless list` shows the monitor as supported; `nubless get firmware` prints the firmware (record it; the evidence stamp needs it, for example `3.05`).
-3. Save a way back: `nubless snapshot save before.json`. At the end: `nubless snapshot restore before.json`. (`nubless snapshot restore --baseline` also works.)
-4. Use `--experimental` for Labs controls. Risky changes ask **"Keep this change?"** and put the old value back after **5 s** without a `y`. Use `--revert-after 10` if you need longer to look at the screen.
+2. Run the app from this branch (`cd apps/desktop && npm install && npx tauri dev`) or from a test build if one was shared. About → "Monitor firmware" shows the firmware: write it down.
+3. Open **Settings → Labs** and turn it on. Your original settings are saved automatically the first time the app connects; **Settings → Reset to my original settings** puts everything back at the end.
+4. Open **Displays** and keep the OSD up next to it.
 
-`-> y` below means: answer `y` at the "Keep this change?" question. Write down what the **OSD** shows, not what nubless says: the OSD is the evidence.
+Changes to Contrast, Black Stabilizer, Response Time and Adaptive-Sync show **"Keep this change?"** for 5 seconds. Click **Keep** once you've looked at the screen and the OSD. If you don't answer, it puts the old value back, which is also something to check.
+
+Write down what the **OSD** shows, not what the app shows: the OSD is the evidence.
 
 ## Cards
 
-### Contrast `0x12` (safe policy, no `--experimental`)
+### 1. Response Time (Gaming → Response Time)
 
-```
-nubless get contrast                        # OSD contrast shows the same number
-nubless set contrast 60   -> y              # OSD shows 60
-nubless set contrast 10                     # must be refused (safe range starts at 20)
-nubless undo                                # OSD shows 70 again (or what it was)
-```
+The OSD offers **Off, Normal, Fast, Faster**. We assume Off / Normal / Fast / Faster.
 
-### Volume `0x62` and Mute `0x8D`
+For each of the four buttons: click it, then look at the OSD.
+- Does the OSD show the same name? (If two names are swapped, say which.)
+- Did the picture flicker or go black? For how long?
+- Click **Keep** on the last one. Then change it again and **wait 5 seconds without answering**: does it go back by itself, and does the OSD agree?
 
-```
-nubless --experimental get volume; nubless --experimental get mute
-nubless --experimental set volume 25        # OSD volume shows 25 (play audio over DisplayPort/HDMI to hear it)
-nubless --experimental set mute muted       # audio stops; raw 1?
-nubless --experimental set mute unmuted     # audio returns; raw 2?
-nubless undo; nubless undo                  # both go back
-```
+### 2. Adaptive-Sync / VRR (Gaming → Adaptive-Sync/VRR)
 
-### Response Time `0xF7`
+The OSD offers **Extended, Basic, Off**. Do this with the PC connected over DisplayPort.
 
-The OSD offers **Off, Normal, Fast, Faster**. We assume raw `0 / 3 / 2 / 1` (Off = 0 from LG's enum and the monitor's own `F7(00 01 02 03)`; the rest from the same enum, label order inferred).
+For each of the three buttons: does the OSD match, and does the screen go black while it switches (for how many seconds)? Try **Revert** once and check the OSD.
 
-```
-nubless --experimental set response-time off      -> y    # OSD says: ______ (raw 0)
-nubless --experimental set response-time normal   -> y    # OSD says: ______ (raw 3)
-nubless --experimental set response-time fast     -> y    # OSD says: ______ (raw 2)
-nubless --experimental set response-time faster   -> y    # OSD says: ______ (raw 1)
-nubless --experimental set response-time faster --yes; nubless --experimental get response-time
-                                                          # does the first read already show Faster? yes / no
-nubless --experimental set response-time normal --revert-after 3     # answer nothing: back to what it was in 3 s?
-```
+### 3. Black Stabilizer (Picture → Black Stabilizer)
 
-Record whether the picture blanked or flickered and for how long.
+The OSD slider is 0–100. Drag the app's slider (or use − / +) to **0, 50, 51 and 100** and compare the number in the OSD each time. The prompt should appear once, when you let go. **Revert** should return to where the drag started.
 
-### Adaptive-Sync / VRR `0xF8`
+### 4. Contrast (Picture → Contrast)
 
-The OSD offers Extended, Basic, Off. We assume raw `0 / 2 / 3` = Off / Basic / Extended. Do this with the PC's display connected over DisplayPort.
+Set 60, then look at the OSD. Try to drag below 20: the slider stops at 20 on purpose. Use **Revert** once, then **Keep** once.
 
-```
-nubless --experimental set adaptive-sync off      -> y    # OSD says: ______ (raw 0)
-nubless --experimental set adaptive-sync basic    -> y    # OSD says: ______ (raw 2)
-nubless --experimental set adaptive-sync extended -> y    # OSD says: ______ (raw 3)
-```
+### 5. Volume and Mute (Sound)
 
-Record: does the screen go black while it switches, and for how many seconds? Does `nubless get adaptive-sync` right after the write already show the new value, or the old one for a moment? (If the old one, tell us: the controller waits one extra read for that, and the number tells us whether it is enough.)
+Play audio over DisplayPort/HDMI. Move the volume slider and compare the OSD's volume. Toggle **Mute**: does the sound stop and start, and does the OSD agree?
 
-### Black Stabilizer `0xF9`
+### 6. The prompt itself
 
-The monitor reports a maximum of 255; nubless allows `0..=100`. Compare with the OSD's own scale.
+Besides the checks above, tell us if it ever: doesn't appear when it should, appears for something harmless (brightness, volume, mute shouldn't), covers something you need, or is hard to read.
 
-```
-nubless --experimental set black-stabilizer 0     -> y    # OSD shows ___
-nubless --experimental set black-stabilizer 50    -> y    # OSD shows ___
-nubless --experimental set black-stabilizer 51    -> y    # OSD shows ___ (is the scale 0-100, 1:1?)
-nubless --experimental set black-stabilizer 100   -> y    # OSD shows ___
-```
+## Not part of this round
 
-The OSD list did not record this slider's scale. If its maximum is not 100, or the numbers don't match 1:1, **stop and report it**: the UI range is wrong.
-
-### Read-only mapping (no writes: safe to do first)
-
-These only need `nubless probe` and the OSD; see [`research/10-osd-inventory.md`](research/10-osd-inventory.md) for the full list of what is still unmapped. Highest value first:
-
-1. **Picture modes** `0x15`: select RTS, Vivid, Reader, HDR Effect, sRGB and Max Brightness in the OSD one at a time and run `nubless get picture-mode` (or `probe diff`). Six new raw values unlock all 14 modes.
-2. **Aspect Ratio** `0xF5`: Full Wide, Original, Just Scan, then `nubless get aspect-ratio` for each.
-3. **Dual-Mode** `0xB1`: all four options, then `nubless get dual-mode`.
-4. **AI Upscaling**: write down its OSD options, then `nubless --experimental get ai-upscaling` in each.
-5. Unmapped settings (Local Dimming, Sharpness, Crosshair, FPS Counter, Bass Boost, Sound Out, Auto Input Switch, Hexagon Lighting): one `probe save` / `probe diff` pair per option.
-
-### The "Keep this change?" prompt in the app
-
-With Labs on in the app (Settings → Labs):
-
-- Change **Response Time**: the prompt appears with a shrinking line and "Reverts in N s"; **Keep** leaves it, **Revert** puts it back at once, no answer puts it back after 5 s. Check the OSD agrees each time.
-- Drag **Black Stabilizer**: one prompt when you let go; **Revert** returns to where the drag started.
-- Change **Contrast**: same prompt; **Revert** works.
-
-### Endurance (optional, 5 minutes)
-
-Bash: `for i in $(seq 1 100); do nubless set brightness 40 --yes; nubless set brightness 41 --yes; done`
-PowerShell: `1..100 | % { nubless set brightness 40 --yes; nubless set brightness 41 --yes }`
-
-Pass: it never errors, the OSD still answers afterwards, and `nubless get` still matches the OSD. If DDC/CI ever stops answering, note what you changed last and keep `nubless journal`.
+- **Reading unmapped OSD settings** (the six picture modes the app doesn't know, Aspect Ratio, Dual-Mode, Local Dimming, Sharpness, Crosshair, FPS Counter, Bass Boost, Sound Out, Auto Input Switch, Hexagon Lighting). That needs the command-line `nubless probe`, or an in-app mapping helper that doesn't exist yet. The list is in [`research/10-osd-inventory.md`](research/10-osd-inventory.md).
+- **Command-line checks** (`nubless set ...`, the endurance loop). Automated tests cover the CLI against the simulated monitor; contributors who want to run it on hardware can follow [`mapping-guide.md`](mapping-guide.md).
 
 ## Recording a result
 
-Paste this into the PR for each card:
+Plain words are fine: per card, what the OSD showed for each option, whether it blanked and for how long, and whether Keep / Revert / the 5 s timeout behaved. The record that goes into the PR looks like this:
 
 ```
 Control:            Response Time
 Monitor firmware:   3.05
-OSD options seen:   Normal, Fast, Faster
-Raw -> OSD:         3=Normal  2=Fast  1=Faster
+Raw -> OSD:         0=Off  3=Normal  2=Fast  1=Faster
 Write + OSD:        yes
-Undo + OSD:         yes
 Keep prompt:        kept / reverted / timed out: all behaved
 Blanking:           none | ~2 s black on change
 Date / tester:      2026-MM-DD / name
