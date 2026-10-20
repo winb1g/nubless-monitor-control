@@ -3,6 +3,7 @@
   import { fly } from "svelte/transition";
   import { flip } from "svelte/animate";
   import { ui, dismiss } from "../store.svelte";
+  import KeepOrRevert from "./KeepOrRevert.svelte";
 
   let { compact = false }: { compact?: boolean } = $props();
 
@@ -11,6 +12,7 @@
 </script>
 
 <div class="stack" class:compact aria-live="polite">
+  <KeepOrRevert />
   {#each ui.toasts as t (t.id)}
     <div class="toast" animate:flip={toastReflow} in:fly={toastIn} out:fly={toastOut}>
       {#if t.tone === "warn" || t.tone === "error"}<span class="label {t.tone}">{labels[t.tone]}</span>{/if}

@@ -12,6 +12,7 @@ type Backend = {
   simulatePbp(on: boolean): Promise<FeatureOutcome>;
   pickPictureMode(label: string, confirmed: boolean): Promise<FeatureOutcome>;
   undo(): Promise<Outcome>;
+  revertControl(id: string, value: number): Promise<Outcome>;
   resetOriginal(): Promise<Outcome>;
   getHotkeys(): Promise<HotkeysView>;
   setHotkeys(enabled: boolean, bindings: Record<HotkeyAction, string>): Promise<HotkeysView>;
@@ -36,6 +37,7 @@ async function tauriBackend(): Promise<Backend> {
     simulatePbp: (on) => invoke("simulate_pbp", { on }),
     pickPictureMode: (label, confirmed) => invoke("pick_picture_mode", { label, confirmed }),
     undo: () => invoke("undo"),
+    revertControl: (id, value) => invoke("revert_control", { id, value }),
     resetOriginal: () => invoke("reset_original"),
     getHotkeys: () => invoke("get_hotkeys"),
     setHotkeys: (enabled, bindings) => invoke("set_hotkeys", { enabled, bindings }),

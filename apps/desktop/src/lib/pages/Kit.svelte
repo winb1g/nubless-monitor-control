@@ -3,7 +3,7 @@
   // Dev only (`npm run dev`, then open /#/kit); it is not part of the built app.
   // Use it to check a change in light and dark, and with reduced motion on.
   import { Maximize2 } from "@lucide/svelte";
-  import { ui, toast, ask } from "../store.svelte";
+  import { ui, toast, ask, askToKeep } from "../store.svelte";
   import { theme, setTheme } from "../theme.svelte";
   import { upd, type Phase } from "../updates.svelte";
   import type { ControlView } from "../types";
@@ -22,12 +22,12 @@
   const ctl = (id: string) => s?.controls.find((c) => c.id === id);
   const locked: ControlView = {
     id: "kit-locked", label: "Volume", group: "sound", kind: "range", value: 20, display: "20", min: 0, max: 100, choices: [],
-    enabled: false, reason: "Looks right, but hasn't been tested on a real monitor yet.", unlock: "labs",
+    enabled: false, reason: "Looks right, but hasn't been tested on a real monitor yet.", unlock: "labs", confirm: false,
   };
   const lockedSeg: ControlView = {
     id: "kit-seg", label: "Adaptive-Sync/VRR", group: "game", kind: "choice", value: 3, display: "Extended",
     min: 0, max: 0, choices: [{ raw: 0, label: "Off" }, { raw: 2, label: "Basic" }, { raw: 3, label: "Extended" }],
-    enabled: false, reason: "Looks right, but hasn't been tested on a real monitor yet.", unlock: "labs",
+    enabled: false, reason: "Looks right, but hasn't been tested on a real monitor yet.", unlock: "labs", confirm: false,
   };
   const colors = ["ground", "wash", "ink", "dim", "rule", "signal", "ok", "warn", "err"];
   const sizes = ["2xs", "xs", "sm", "md", "base", "lg", "xl", "2xl", "3xl", "4xl"];
@@ -153,6 +153,7 @@
       <div class="banner"><span class="eyebrow err">Error</span><div><b>Changes are paused.</b> nubless couldn't save your original settings.</div></div>
       <div class="row gap">
         <button class="btn" onclick={() => toast("Brightness updated", "success", () => {})}>Toast with Undo</button>
+        <button class="btn" onclick={() => askToKeep("black-stabilizer", "Black Stabilizer", "70", 50)}>Keep this change?</button>
         <button class="btn" onclick={() => toast("Another smart feature is on.", "warn")}>Notice</button>
         <button class="btn" onclick={() => toast("Couldn't reach the monitor.", "error")}>Error</button>
         <button class="btn" onclick={() => ask({ title: "Turn off AI Scene Optimization?", body: "Turning on AI Picture Mode will turn off AI Scene Optimization. Continue?", confirm: "Continue", cancel: "Cancel" })}>Dialog</button>

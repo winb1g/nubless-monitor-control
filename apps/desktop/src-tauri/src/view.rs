@@ -2,6 +2,7 @@
 //! the frontend never decides on its own whether something is allowed.
 
 use nubless_core::profile::{Confidence, Control, Risk, ValueKind, WritePolicy};
+use nubless_core::profiles::gm950b::PROFILE;
 use nubless_core::rules::{Availabilities, FeatureState};
 use serde::Serialize;
 
@@ -38,6 +39,9 @@ pub struct ControlView {
     pub reason: Option<&'static str>,
     /// `labs` when turning on Labs would unlock it.
     pub unlock: Option<&'static str>,
+    /// A change can hide the picture or resync the panel: after setting it the UI
+    /// asks "Keep this change?" and reverts if nobody answers (`Req::Revert`).
+    pub confirm: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -166,5 +170,7 @@ pub fn view_control(c: &'static Control, value: Option<u16>, policy: WritePolicy
         enabled: reason.is_none(),
         reason,
         unlock,
+        // Picture mode is switched through the AI interlock, which asks its own question.
+        confirm: c.needs_confirm_or_revert() && PROFILE.mode_control != Some(c.id),
     }
 }

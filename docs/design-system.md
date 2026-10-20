@@ -7,10 +7,10 @@ The desktop UI (`apps/desktop`) has one source of truth for how things look and 
 | Tokens: color, radius, spacing, type, motion | `src/app.css` (`:root`, plus two dark-theme blocks) |
 | Shared classes: `.page`, `.page-head`, `.subtitle`, `.btn`, `.link`, `.tag`, `.eyebrow`, `.mono`, `.muted`, `.small`, `.skeleton`, `.hatch`, `.led` | `src/app.css` |
 | Svelte transition presets | `src/lib/motion.ts` (durations read from `app.css`) |
-| Building blocks: `Section`, `Item`, `Toggle`, `Slider`, `Segmented`, `ModePicker`, `Lock`, `Hint`, `Logo`, `MonitorArt` | `src/lib/components/` |
+| Building blocks: `Section`, `Item`, `Toggle`, `Slider`, `Segmented`, `ModePicker`, `Lock`, `KeepOrRevert`, `Hint`, `Logo`, `MonitorArt` | `src/lib/components/` |
 | How picture modes are named and grouped | `src/lib/modes.ts` |
 | Every component in every state, light and dark | the design kit: `npm run dev`, then open `/#/kit` |
-| Enforcement | `node scripts/lint-tokens.mjs` (`npm run lint:tokens`), run in CI |
+| Enforcement | `node scripts/lint-tokens.mjs` (`npm run lint:tokens`), and the browser tests in `tests/ui.test.mjs` (`npm run test:ui`), both run in CI |
 
 The look is flat and typographic: no cards, fills or shadows around content. Structure comes from 2px ink rules, hairlines, and type. Rule of thumb: a component's `<style>` uses tokens for every color, radius, font, size and duration. The lint fails on raw hex or `rgb()` colors, gradients, shadows, literal fonts, radii and durations. A line that truly needs a literal (a drawing, say) can end with `lint-tokens: allow`.
 
@@ -58,6 +58,7 @@ One curve, `--ease` (`cubic-bezier(0.2, 0, 0, 1)`: fast out, settles). No spring
 | `--slow` | 260ms | A dialog arriving |
 | `--hatch` | 600ms | One step of the busy bar |
 | `--blink` | 1s | The Simulated LED, in steps |
+| `--keep-window` | 5s | The timer line on "Keep this change?" before it reverts (matches `KEEP_MS` in `store.svelte.ts` and the CLI's `--revert-after` default) |
 | `--undo-window` | 5s | The timer line under a toast with Undo (matches `store.svelte.ts`) |
 
 Two decorative loops exist and no others: the **hatch** bar (`.hatch`, ticks marching: anything waiting on the monitor) and the **LED** (`.led.blink`: only while the monitor is simulated; Connected is the same square, solid). `prefers-reduced-motion` turns all of it off: `app.css` shortens CSS animations and transitions, and every `motion.ts` preset returns 0.
@@ -86,12 +87,15 @@ Need a duration in script (a timeout that matches an animation)? Use `ms("fast")
 - **`Slider`**: an outlined bar with a mono readout. `fine` puts − and + at the ends (±1 per press, hold to repeat; a run of presses counts as one change, so Undo goes back to where it started). `compact` is the tray's size. The readout inverts while you drag. The cursor over the bar is the pointer.
 - **`Segmented`**: a choice among a few named values; the selected one is an ink fill.
 - **`ModePicker`**: the picture mode. `layout="chips"` shows every mode at once, grouped by use (Everyday, Gaming, Color work, Accessibility; see `modes.ts`). `layout="stepper"` is `‹ name ›` with a position counter and ticks, and writes only the mode you stop on (400ms), so passing over modes never reaches the monitor. Both go through `pickPictureMode`, so the AI-feature interlock still asks first.
+- **`KeepOrRevert`**: "Keep this change?" for a control whose `confirm` flag is set (it can hide the picture or resync the panel: contrast, Black Stabilizer, Response Time, Adaptive-Sync). The change has already gone out; unless it is kept within `--keep-window` (5 s) it is put back, through the same restore rules as Undo, so even a value below a slider's range comes back. It sits at the top of the toast stack, so it never overlaps a toast. Changing the same control again keeps the first "before" and restarts the countdown, so a run of tweaks is kept or put back as one change. It replaces the Undo toast for those controls; other controls keep the Undo toast. It is driven by `askToKeep` / `keepChange` / `revertChange` in `store.svelte.ts`.
 - **`Lock`**: why a control can't be used. Labs controls get the flask and `LABS`; anything else gets the padlock and a dashed `LOCKED` tag. Click for the reason.
 - **`Hint`**, **`Logo`**, **`MonitorArt`** (the dashed "no signal" drawing for the empty state).
 
 Everything is also in the design kit (`/#/kit`) in every state.
 
 ## Adding a feature
+
+Whether a control asks to be kept comes from its `Risk` in `nubless-core` (`Visibility` or `Resync`), not from the UI: a new risky control is covered by setting its risk, and the UI needs nothing else.
 
 1. Put it in the page's grid or stack. For a titled block of controls use `Section`:
 

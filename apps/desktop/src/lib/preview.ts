@@ -8,8 +8,11 @@ const LABS = "Looks right, but hasn't been tested on a real monitor yet.";
 const UNMAPPED = "Not mapped yet. We know where it lives, but not how it's encoded.";
 const INFO = "Information from your monitor.";
 
+/** Controls that can hide the picture or resync the panel (Risk::Visibility / Resync in nubless-core). */
+const CONFIRM = ["contrast", "black-stabilizer", "response-time", "adaptive-sync"];
+
 function c(p: Partial<ControlView> & Pick<ControlView, "id" | "label" | "group" | "kind">): ControlView {
-  return { value: null, display: null, min: 0, max: 0, choices: [], enabled: true, reason: null, unlock: null, ...p };
+  return { value: null, display: null, min: 0, max: 0, choices: [], enabled: true, reason: null, unlock: null, confirm: CONFIRM.includes(p.id), ...p };
 }
 
 function controls(labs: boolean, v: Record<string, number>): ControlView[] {
@@ -126,6 +129,12 @@ export function previewBackend() {
       values[id] = value;
       emit();
       return { state: state(), toast: `${label} updated`, undoable: true };
+    },
+    async revertControl(id: string, value: number): Promise<Outcome> {
+      await wait(120);
+      values[id] = value;
+      emit();
+      return { state: state(), toast: "Put back", undoable: false };
     },
     async toggleFeature(f: Feature, on: boolean, confirmed: boolean): Promise<FeatureOutcome> {
       if (features[key[f]] === on) return { kind: "applied", state: state(), notice: null };

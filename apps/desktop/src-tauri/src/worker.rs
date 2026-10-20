@@ -47,6 +47,14 @@ pub enum Req {
         reply: Reply<FeatureOutcome>,
     },
     Undo(Reply<Result<Outcome, String>>),
+    /// Put one control back to a value it had, using the restore rules (any value
+    /// the monitor itself reported is allowed). The UI's answer to a change nobody
+    /// kept: see `ControlView::confirm`.
+    Revert {
+        id: String,
+        value: u16,
+        reply: Reply<Result<Outcome, String>>,
+    },
     ResetOriginal(Reply<Result<Outcome, String>>),
     /// A global shortcut fired. No reply: every window gets the new state.
     Hotkey(Action),
@@ -308,6 +316,9 @@ impl Worker {
                     undoable: false,
                 }));
             }
+            Req::Revert { id, value, reply } => {
+                let _ = reply.send(self.revert(&id, value));
+            }
             Req::ResetOriginal(r) => {
                 let _ = r.send(self.reset_original());
             }
@@ -448,6 +459,28 @@ impl Worker {
             state: self.state(),
             toast: changed.then(|| format!("{label} updated")),
             undoable: changed,
+        })
+    }
+
+    fn revert(&mut self, id: &str, value: u16) -> Result<Outcome, String> {
+        self.writes_allowed()?;
+        let conn = self.conn.as_mut().expect("checked");
+        let control = conn.ctl.control(id).map_err(|e| e.to_string())?;
+        let snapshot = Snapshot {
+            model: PROFILE.model.to_string(),
+            values: BTreeMap::from([(control.id.to_string(), value)]),
+            mode: None,
+        };
+        let results = conn.ctl.restore(&snapshot);
+        let v = conn.ctl.read(control.id).ok().map(|r| r.current);
+        conn.values.insert(control.id, v);
+        if let Some((_, Err(e))) = results.into_iter().next() {
+            return Err(format!("{} couldn't be put back: {e}", control.label));
+        }
+        Ok(Outcome {
+            state: self.state(),
+            toast: Some(format!("{} put back", control.label)),
+            undoable: false,
         })
     }
 
@@ -827,6 +860,66 @@ mod tests {
         let out = w.set("brightness", 42).unwrap();
         assert!(out.undoable);
         assert_eq!(value(&mut w, "brightness"), Some(42));
+    }
+
+    #[test]
+    fn only_risky_controls_ask_to_be_kept() {
+        let mut w = hardware_worker("keep", true);
+        let asks: Vec<_> = w
+            .state()
+            .controls
+            .iter()
+            .filter(|c| c.confirm)
+            .map(|c| c.id)
+            .collect();
+        for id in [
+            "contrast",
+            "black-stabilizer",
+            "response-time",
+            "adaptive-sync",
+        ] {
+            assert!(asks.contains(&id), "{id} must ask");
+        }
+        for id in [
+            "brightness",
+            "volume",
+            "mute",
+            "ai-sound",
+            "ai-scene-optimization",
+        ] {
+            assert!(!asks.contains(&id), "{id} must not ask");
+        }
+        // Picture mode has its own question (the AI interlock) and is never set through `set`.
+        assert!(!asks.contains(&"picture-mode"));
+    }
+
+    #[test]
+    fn an_unkept_change_is_put_back() {
+        let mut w = hardware_worker("revert", true);
+        let before = value(&mut w, "response-time").unwrap();
+        w.set("response-time", 3).unwrap();
+        let out = w.revert("response-time", before).unwrap();
+        assert!(!out.undoable);
+        assert_eq!(value(&mut w, "response-time"), Some(before));
+    }
+
+    #[test]
+    fn revert_can_restore_a_value_below_the_safe_range() {
+        // The user's own contrast was 10 (below the 20 floor sliders allow).
+        // Putting it back must still work, or "Revert" could leave the screen worse.
+        let mut w = hardware_worker("revert-floor", false);
+        w.conn.as_mut().unwrap().ctl.snapshot();
+        assert!(w.set("contrast", 5).is_err());
+        w.set("contrast", 40).unwrap();
+        w.revert("contrast", 10).unwrap();
+        assert_eq!(value(&mut w, "contrast"), Some(10));
+    }
+
+    #[test]
+    fn revert_is_refused_without_saved_original_settings() {
+        let mut w = hardware_worker("revert-none", true);
+        w.conn.as_mut().unwrap().baseline = None;
+        assert!(w.revert("response-time", 2).is_err());
     }
 
     #[test]

@@ -22,6 +22,8 @@ export interface ControlView {
   enabled: boolean;
   reason: string | null;
   unlock: "labs" | null;
+  /** A change can hide the picture or resync the panel: ask "Keep this change?" and revert if unanswered. */
+  confirm: boolean;
 }
 
 export interface FeatureState {
