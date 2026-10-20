@@ -1,6 +1,6 @@
 # Needs verification on a real 27GM950B
 
-Each item needs a person with the monitor. Record results with the test card in [`mapping-guide.md`](mapping-guide.md), then raise the control's `confidence` in `crates/nubless-core/src/profiles/gm950b.rs` in the same PR.
+Each item needs a person with the monitor. The exact commands and what to look for are in [`hardware-test-cards.md`](hardware-test-cards.md); record results with the test card in [`mapping-guide.md`](mapping-guide.md), then raise the control's `confidence` in `crates/nubless-core/src/profiles/gm950b.rs` in the same PR (the tests tell you what else must change).
 
 ## Writes (one step and back)
 
@@ -20,6 +20,12 @@ Each item needs a person with the monitor. Record results with the test card in 
 - [ ] Turn on Labs and switch AI Scene Optimization and AI Sound from nubless once each, checking the OSD (first writes on 0xA6).
 - [ ] AI Upscaling: which value is Off / Low / High? (A real unit reported 1 while LG Switch showed Off.)
 - [ ] **Dual-Mode** `0xB1`: what does *Conversion* send? (Read-only until understood.)
+
+## Keep or revert (5 s)
+
+- [ ] CLI: a risky change with no answer is put back after 5 s and the OSD agrees (`--revert-after` changes the time).
+- [ ] App (Labs on): Response Time, Black Stabilizer and Contrast each ask "Keep this change?"; Keep, Revert and no answer all end where the OSD says they should.
+- [ ] Does a read right after a Response Time / VRR write already show the new value, or only after a moment? (The controller waits one extra read; say if that is not enough.)
 
 ## Recovery questions (dead-end checks)
 
