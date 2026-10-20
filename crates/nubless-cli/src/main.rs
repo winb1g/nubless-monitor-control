@@ -56,7 +56,7 @@ enum Command {
         #[arg(long)]
         yes: bool,
         /// Seconds before an unconfirmed change reverts on its own.
-        #[arg(long, default_value_t = 15)]
+        #[arg(long, default_value_t = KEEP_SECONDS)]
         revert_after: u64,
     },
     /// Undo the most recent change.
@@ -117,6 +117,10 @@ fn main() -> ExitCode {
 }
 
 type AnyResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+
+/// How long "Keep this change?" waits. The desktop app waits the same time
+/// (`KEEP_MS` in `apps/desktop/src/lib/store.svelte.ts`).
+const KEEP_SECONDS: u64 = 5;
 
 fn state_dir() -> PathBuf {
     nubless_core::paths::state_dir()

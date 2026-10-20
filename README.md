@@ -99,7 +99,7 @@ nubless undo                          # undo the last change
 nubless snapshot restore --baseline   # put back what you had before nubless
 nubless controls                      # what each control is, how sure we are, and why
 nubless --mock get                    # a simulated 27GM950B, no hardware needed
-nubless --experimental set adaptive-sync basic   # asks "Keep this change?", reverts in 15 s
+nubless --experimental set adaptive-sync basic   # asks "Keep this change?", reverts in 5 s
 ```
 
 ## What works today
@@ -137,6 +137,7 @@ The control map with evidence is in [`docs/research/05-screen-settings-panel.md`
 | [`SAFETY.md`](SAFETY.md) | The safety contract and how it is enforced |
 | [`docs/rules.md`](docs/rules.md) | The interlock rules between features |
 | [`docs/verify-on-hardware.md`](docs/verify-on-hardware.md) | Hardware test checklist |
+| [`docs/hardware-test-cards.md`](docs/hardware-test-cards.md) | Step-by-step test cards for the Labs controls |
 | [`docs/mapping-guide.md`](docs/mapping-guide.md) | How to map a control safely |
 | [`docs/roadmap.md`](docs/roadmap.md) | Where this is going |
 | [`docs/design-system.md`](docs/design-system.md) | Tokens, motion, components and the design kit for the UI |
