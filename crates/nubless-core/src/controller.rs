@@ -172,6 +172,14 @@ impl<T: Transport> Controller<T> {
         self.read_control(c)
     }
 
+    /// The value a change would be undone to. An answer of `0 / 0` is not a
+    /// value: some LG firmware answers codes it does not implement that way, and
+    /// "restoring" to that zero would be a made-up write.
+    fn read_undoable(&mut self, c: &'static Control) -> Option<VcpReading> {
+        let r = self.read_control(c).ok()?;
+        (r.max != 0 || r.current != 0).then_some(r)
+    }
+
     fn read_control(&mut self, c: &'static Control) -> Result<VcpReading, ControlError> {
         self.read_control_as(c, self.policy)
     }
@@ -230,8 +238,8 @@ impl<T: Transport> Controller<T> {
         // Validate first so a forbidden write costs no DDC traffic at all.
         let validated = safety::check_write(control, value, &self.caps, self.policy)?;
         let old = self
-            .read_control(control)
-            .map_err(|_| ControlError::CannotReadCurrent(control.id))?;
+            .read_undoable(control)
+            .ok_or(ControlError::CannotReadCurrent(control.id))?;
         let needs_confirmation = control.needs_confirm_or_revert();
         if old.current == value {
             return Ok(Applied {
@@ -337,8 +345,8 @@ impl<T: Transport> Controller<T> {
             let result = (|| {
                 let control = self.control(id)?;
                 let old = self
-                    .read_control(control)
-                    .map_err(|_| ControlError::CannotReadCurrent(control.id))?;
+                    .read_undoable(control)
+                    .ok_or(ControlError::CannotReadCurrent(control.id))?;
                 if old.current == value {
                     return Ok(());
                 }
@@ -383,12 +391,19 @@ impl<T: Transport> Controller<T> {
         self.pace();
         let sent = self.transport.set_vcp(&write);
         self.settle();
-        let back = self.verify_read(control);
+        let mut back = self.verify_read(control);
         // For a sub-command the monitor reports only the argument byte.
         let expected = match control.kind {
             ValueKind::SubCommand { .. } => write.value() & 0xFF,
             _ => write.value(),
         };
+        // A monitor that is still applying the change (response time and VRR
+        // resync the panel) can answer with the old value once. Look again before
+        // calling it refused, or a change that did land would be reported as undone.
+        if sent.is_ok() && back != Some(expected) {
+            self.settle();
+            back = self.verify_read(control);
+        }
         if sent.is_ok() && back == Some(expected) {
             self.journal.set_state(index, EntryState::Applied);
             return Ok(());
@@ -490,6 +505,9 @@ fn check_restore(
         Err(e) => Err(e),
     }
 }
+
+#[cfg(test)]
+mod fault_tests;
 
 #[cfg(test)]
 mod tests {

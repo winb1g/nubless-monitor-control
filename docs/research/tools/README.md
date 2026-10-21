@@ -6,7 +6,7 @@ All scripts are **read-only** with respect to the monitor and to LG Switch's fil
 |---|---|---|
 | `vcp-scan.ps1` | Reads every VCP code the monitor declares (capabilities string) and prints `code, current, max`, plus the raw capabilities string. | Windows, PowerShell 5.1 or 7 |
 | `vcp-diff.ps1` | `-Save before.json`, change ONE setting in LG Switch / the OSD, then `-Compare before.json` to see which code changed. Retries flaky reads and reports "unstable" codes separately. | same |
-| `read-firmware-level.ps1` | Prints the monitor's firmware (VCP `0xC9`), e.g. `3.05 (raw 0x0305)`. Same file as in `lg-firmware-watch`. | same |
+| `read-firmware-level.ps1` | Prints the monitor's firmware (VCP `0xC9`), e.g. `3.05 (raw 0x0305)`. | same |
 | `vcp-read.ps1` | Reads specific VCP codes (declared or not) with retries: `-Codes 0xF7,0xF8,0xF9`. | same |
 | `fw-latest-per-model.ps1` | One GET per model of LG's `FWLatestVersion.txt`, sequential with a delay; writes a TSV of latest firmware + `Last-Modified`. Run rarely. | same + internet |
 | `enum-dump/` | .NET tool: prints every enum in a managed assembly with its numeric values (`dotnet enum-dump.dll SwitchAppModel.dll`). LG's enum names are not obfuscated. | .NET SDK |

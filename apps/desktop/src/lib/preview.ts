@@ -8,8 +8,11 @@ const LABS = "Looks right, but hasn't been tested on a real monitor yet.";
 const UNMAPPED = "Not mapped yet. We know where it lives, but not how it's encoded.";
 const INFO = "Information from your monitor.";
 
+/** Controls that can hide the picture or resync the panel (Risk::Visibility / Resync in nubless-core). */
+const CONFIRM = ["contrast", "black-stabilizer", "response-time", "adaptive-sync"];
+
 function c(p: Partial<ControlView> & Pick<ControlView, "id" | "label" | "group" | "kind">): ControlView {
-  return { value: null, display: null, min: 0, max: 0, choices: [], enabled: true, reason: null, unlock: null, ...p };
+  return { value: null, display: null, min: 0, max: 0, choices: [], enabled: true, reason: null, unlock: null, confirm: CONFIRM.includes(p.id), ...p };
 }
 
 function controls(labs: boolean, v: Record<string, number>): ControlView[] {
@@ -18,7 +21,7 @@ function controls(labs: boolean, v: Record<string, number>): ControlView[] {
     c({ id: "brightness", label: "Brightness", group: "picture", kind: "range", min: 0, max: 100 }),
     c({ id: "contrast", label: "Contrast", group: "picture", kind: "range", min: 20, max: 100 }),
     strong(c({ id: "black-stabilizer", label: "Black Stabilizer", group: "picture", kind: "range", min: 0, max: 100 })),
-    strong(c({ id: "response-time", label: "Response Time", group: "game", kind: "choice", choices: [{ raw: 3, label: "Normal" }, { raw: 2, label: "Fast" }, { raw: 1, label: "Faster" }] })),
+    strong(c({ id: "response-time", label: "Response Time", group: "game", kind: "choice", choices: [{ raw: 0, label: "Off" }, { raw: 3, label: "Normal" }, { raw: 2, label: "Fast" }, { raw: 1, label: "Faster" }] })),
     strong(c({ id: "adaptive-sync", label: "Adaptive-Sync/VRR", group: "game", kind: "choice", choices: [{ raw: 0, label: "Off" }, { raw: 2, label: "Basic" }, { raw: 3, label: "Extended" }] })),
     c({ id: "picture-mode", label: "Picture Mode", group: "mode", kind: "choice", choices: [
       { raw: 65, label: "Personalized Picture" }, { raw: 45, label: "Gamer 1" }, { raw: 46, label: "Gamer 2" }, { raw: 18, label: "Calibration1" },
@@ -126,6 +129,12 @@ export function previewBackend() {
       values[id] = value;
       emit();
       return { state: state(), toast: `${label} updated`, undoable: true };
+    },
+    async revertControl(id: string, value: number): Promise<Outcome> {
+      await wait(120);
+      values[id] = value;
+      emit();
+      return { state: state(), toast: "Put back", undoable: false };
     },
     async toggleFeature(f: Feature, on: boolean, confirmed: boolean): Promise<FeatureOutcome> {
       if (features[key[f]] === on) return { kind: "applied", state: state(), notice: null };

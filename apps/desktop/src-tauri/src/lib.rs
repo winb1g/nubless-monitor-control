@@ -140,6 +140,18 @@ async fn undo(app: AppHandle, b: State<'_, Backend>) -> Result<Outcome, String> 
 }
 
 #[tauri::command]
+async fn revert_control(
+    app: AppHandle,
+    b: State<'_, Backend>,
+    id: String,
+    value: u16,
+) -> Result<Outcome, String> {
+    let out = ask(&b, |reply| Req::Revert { id, value, reply }).await??;
+    broadcast(&app, &out.state);
+    Ok(out)
+}
+
+#[tauri::command]
 async fn reset_original(app: AppHandle, b: State<'_, Backend>) -> Result<Outcome, String> {
     let out = ask(&b, Req::ResetOriginal).await??;
     broadcast(&app, &out.state);
@@ -286,6 +298,7 @@ pub fn run() {
             simulate_pbp,
             pick_picture_mode,
             undo,
+            revert_control,
             reset_original,
             get_hotkeys,
             set_hotkeys,

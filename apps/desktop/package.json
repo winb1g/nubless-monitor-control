@@ -1,6 +1,6 @@
 {
   "name": "nubless-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "nubless desktop UI",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "tauri": "tauri",
     "lint:tokens": "node ../../scripts/lint-tokens.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "test:ui": "node --test tests/ui.test.mjs"
   },
   "license": "GPL-3.0-only",
   "type": "module",

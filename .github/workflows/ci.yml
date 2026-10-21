@@ -33,6 +33,10 @@ jobs:
           npm run check
           npm run lint:tokens
           npm run build
+      - name: UI tests
+        if: runner.os == 'Linux'
+        working-directory: apps/desktop
+        run: CHROME_PATH="$(which google-chrome)" npm run test:ui
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace

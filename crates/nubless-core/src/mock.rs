@@ -8,6 +8,31 @@ use crate::profiles::gm950b::CAPABILITIES_SAMPLE;
 use crate::safety::ValidatedWrite;
 use crate::transport::{Transport, TransportError, VcpReading};
 
+/// Scripted misbehaviour for tests, modelled on what real DDC/CI links do:
+/// dropped replies, all-zero answers for codes the firmware does not implement
+/// (seen on LG monitors), writes that are lost or acknowledged but not applied,
+/// read-backs that lag behind a write, and a link that goes away.
+#[derive(Debug, Clone, Default)]
+pub struct Faults {
+    /// The next N reads of a code get no reply.
+    pub drop_reads: BTreeMap<u8, u32>,
+    /// Reads of these codes answer `0 / 0` instead of failing.
+    pub zero_reply: Vec<u8>,
+    /// The next N writes (any code) fail on the wire; nothing is applied.
+    pub fail_writes: u32,
+    /// The next N writes are acknowledged but not applied.
+    pub swallow_writes: u32,
+    /// After every write to a code, its next N reads still show the old value
+    /// while the new one has already been applied.
+    pub stale_reads: BTreeMap<u8, u32>,
+    /// The next N capabilities requests fail.
+    pub caps_fail: u32,
+    /// The next N capabilities requests return cut-off text.
+    pub caps_garbled: u32,
+    /// Every request fails (cable pulled, DDC/CI switched off in the OSD).
+    pub offline: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct MockMonitor {
     pub values: BTreeMap<u8, VcpReading>,
@@ -17,6 +42,9 @@ pub struct MockMonitor {
     pub ignore_writes_to: Vec<u8>,
     /// Fail every Nth read (0 = never), to exercise retries.
     pub flaky_every: u32,
+    pub faults: Faults,
+    /// Old readings still being served after a write (see [`Faults::stale_reads`]).
+    stale: BTreeMap<u8, (u32, VcpReading)>,
     reads: u32,
     pub writes: Vec<(u8, u16)>,
     /// LG AI channel state per sub-command (0xA6): 2 = AI Scene Optimization,
@@ -62,6 +90,8 @@ impl MockMonitor {
             caps: CAPABILITIES_SAMPLE.to_string(),
             ignore_writes_to: Vec::new(),
             flaky_every: 0,
+            faults: Faults::default(),
+            stale: BTreeMap::new(),
             reads: 0,
             writes: Vec::new(),
             ai: BTreeMap::from([(2, 2), (4, 1), (6, 1)]),
@@ -71,10 +101,33 @@ impl MockMonitor {
 
 impl Transport for MockMonitor {
     fn capabilities(&mut self) -> Result<String, TransportError> {
+        if self.faults.offline {
+            return Err(link_down());
+        }
+        if take(&mut self.faults.caps_fail) {
+            return Err(TransportError::Io("capabilities request timed out".into()));
+        }
+        if take(&mut self.faults.caps_garbled) {
+            return Ok(self.caps[..self.caps.len() / 2].to_string());
+        }
         Ok(self.caps.clone())
     }
 
     fn get_vcp(&mut self, code: u8) -> Result<VcpReading, TransportError> {
+        if self.faults.offline {
+            return Err(link_down());
+        }
+        if let Some(n) = self.faults.drop_reads.get_mut(&code).filter(|n| **n > 0) {
+            *n -= 1;
+            return Err(TransportError::NoReply(code));
+        }
+        if self.faults.zero_reply.contains(&code) {
+            return Ok(VcpReading { current: 0, max: 0 });
+        }
+        if let Some((left, old)) = self.stale.get_mut(&code).filter(|(n, _)| *n > 0) {
+            *left -= 1;
+            return Ok(*old);
+        }
         self.reads += 1;
         if self.flaky_every != 0 && self.reads % self.flaky_every == 0 {
             return Err(TransportError::NoReply(code));
@@ -87,6 +140,21 @@ impl Transport for MockMonitor {
 
     fn set_vcp(&mut self, write: &ValidatedWrite) -> Result<(), TransportError> {
         self.writes.push((write.code(), write.value()));
+        if self.faults.offline {
+            return Err(link_down());
+        }
+        if take(&mut self.faults.fail_writes) {
+            return Err(TransportError::Io("write was not acknowledged".into()));
+        }
+        if take(&mut self.faults.swallow_writes) {
+            return Ok(());
+        }
+        if let (Some(&n), Some(old)) = (
+            self.faults.stale_reads.get(&write.code()),
+            self.values.get(&write.code()),
+        ) {
+            self.stale.insert(write.code(), (n, *old));
+        }
         if write.code() == crate::safety::AI_CHANNEL {
             // LG's AI channel: (sub << 8) | 0xFF asks for a value, anything else sets it.
             let (sub, arg) = ((write.value() >> 8) as u8, (write.value() & 0xFF) as u8);
@@ -113,4 +181,15 @@ impl Transport for MockMonitor {
         entry.current = write.value();
         Ok(())
     }
+}
+
+fn link_down() -> TransportError {
+    TransportError::Io("no DDC/CI link to the monitor".into())
+}
+
+/// Counts a fault down; true while there are faults left to deliver.
+fn take(n: &mut u32) -> bool {
+    let fire = *n > 0;
+    *n = n.saturating_sub(1);
+    fire
 }

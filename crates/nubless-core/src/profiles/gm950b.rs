@@ -11,6 +11,10 @@ pub const CAPABILITIES_SAMPLE: &str = "(prot(monitor)type(lcd)model(WK95U)cmds(0
 
 const RESPONSE_TIME: &[Choice] = &[
     Choice {
+        raw: 0,
+        label: "Off",
+    },
+    Choice {
         raw: 3,
         label: "Normal",
     },
@@ -96,16 +100,17 @@ const OFF_ON: &[Choice] = &[
     },
 ];
 
-/// LG's enum names for AI Upscaling. Unconfirmed: a real unit reported 1 while
-/// LG Switch showed "Off".
+/// AI Upscaling. LG's enum has three values (1, 2, 4) and the OSD offers three
+/// options (Off, Low, High); a real unit read 1 while LG Switch showed Off, so
+/// 1 = Off, and LG's "Middle" (2) is the OSD's Low. Unconfirmed: read-only.
 const UPSCALING: &[Choice] = &[
     Choice {
         raw: 1,
-        label: "Low",
+        label: "Off",
     },
     Choice {
         raw: 2,
-        label: "Middle",
+        label: "Low",
     },
     Choice {
         raw: 4,
@@ -120,7 +125,7 @@ const INPUTS: &[Choice] = &[
     },
     Choice {
         raw: 0x10,
-        label: "DisplayPort 2 / USB-C",
+        label: "USB-C",
     },
     Choice {
         raw: 0x11,
@@ -143,16 +148,10 @@ const MUTE: &[Choice] = &[
     },
 ];
 
-const ASPECT: &[Choice] = &[
-    Choice {
-        raw: 1,
-        label: "16:9",
-    },
-    Choice {
-        raw: 2,
-        label: "21:9",
-    },
-];
+const ASPECT: &[Choice] = &[Choice {
+    raw: 1,
+    label: "Full Wide",
+}];
 
 const fn range(min: u16, max: u16) -> ValueKind {
     ValueKind::Range { min, max }
@@ -173,12 +172,12 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "black-stabilizer", label: "Black Stabilizer", vcp: 0xF9, kind: range(0, 100),
         confidence: Strong, standard: false, writable: true, risk: Risk::Visibility,
-        note: "LG MANUFACTURER_BLACK_STABILIZER. Read-back 50 matched. Monitor reports max 255; UI range assumed 0-100 until write-confirmed.",
+        note: "LG MANUFACTURER_BLACK_STABILIZER. Read-back 50 matched. Monitor reports max 255; the OSD slider is 0-100 (checked by hand 2026-10-20), so the UI range is 0-100; the 1:1 write is not confirmed yet.",
     },
     Control {
         id: "response-time", label: "Response Time", vcp: 0xF7, kind: ValueKind::Choice { choices: RESPONSE_TIME },
         confidence: Strong, standard: false, writable: true, risk: Risk::Resync,
-        note: "LG enum HIGH=1, MIDDLE=2, LOW=3; reads 2 while UI shows Fast. Label order inferred.",
+        note: "LG enum OFF=0, HIGH=1, MIDDLE=2, LOW=3; the capabilities string declares F7(00 01 02 03) and the OSD offers Off, Normal, Fast, Faster. Reads 2 while UI shows Fast. Label order (and Off = 0) inferred, not yet written.",
     },
     Control {
         id: "adaptive-sync", label: "Adaptive-Sync/VRR", vcp: 0xF8, kind: ValueKind::Choice { choices: ADAPTIVE_SYNC },
@@ -213,7 +212,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "aspect-ratio", label: "Aspect Ratio", vcp: 0xF5, kind: ValueKind::Choice { choices: ASPECT },
         confidence: Candidate, standard: false, writable: false, risk: Risk::Resync,
-        note: "LG RATIO_VALUE reads 1 = 16:9; list 0xF4 = 16:9, 21:9.",
+        note: "LG RATIO_VALUE; reads 1 (the OSD's Full Wide, by default). The capabilities string declares F5(01 02 03 04) and the OSD offers Full Wide, Original and Just Scan, so 2-4 are not named yet.",
     },
     Control {
         id: "motion-blur", label: "Motion Blur Reduction", vcp: 0xFA, kind: ValueKind::Info,
@@ -236,7 +235,7 @@ pub const CONTROLS: &[Control] = &[
         id: "ai-upscaling", label: "AI Upscaling", vcp: 0xA6,
         kind: ValueKind::SubCommand { sub: 4, choices: UPSCALING },
         confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Sub-command 4 (eSoC_AIMODE_UPSCALLING): LG names 1 = Low, 2 = Middle, 4 = High, but a real unit answered 1 while LG Switch showed Off. Unavailable while PBP/PIP is on.",
+        note: "Sub-command 4 (eSoC_AIMODE_UPSCALLING): LG names 1 = Low, 2 = Middle, 4 = High; the OSD offers Off, Low, High and a real unit answered 1 while LG Switch showed Off, so we read 1 = Off, 2 = Low, 4 = High (inferred, not written). Unavailable while PBP/PIP is on.",
     },
     Control {
         id: "ai-sound", label: "AI Sound", vcp: 0xA6,
@@ -264,7 +263,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "firmware", label: "Firmware", vcp: 0xC9, kind: ValueKind::Info,
         confidence: ReadConfirmed, standard: true, writable: false, risk: Risk::None,
-        note: "0x0305 = 3.05; equals the US number in LG's firmware file name.",
+        note: "0x0305 = 3.05; matched the US number in LG's firmware file name and LG Switch's update history.",
     },
     Control {
         id: "usage-hours", label: "Usage time (hours)", vcp: 0xC0, kind: ValueKind::Info,
@@ -379,5 +378,173 @@ mod tests {
         let mut other = caps.clone();
         other.vcp.remove(&0xF9);
         assert_eq!(id.matches(None, None, None, Some(&other)), Match::No);
+    }
+}
+
+/// Guards on how much the profile claims. Raising a control's [`Confidence`] is a
+/// claim about real hardware, so it has to be a deliberate, reviewed edit: change
+/// `PINNED` below in the same commit, tick the item in `docs/verify-on-hardware.md`
+/// and put the evidence stamp `(fw X.XX, YYYY-MM-DD)` in the control's note.
+#[cfg(test)]
+mod evidence_tests {
+    use super::*;
+    use crate::profile::{Confidence, Risk, WritePolicy};
+    use std::collections::HashSet;
+
+    const PINNED: &[(&str, Confidence)] = &[
+        ("brightness", ReadConfirmed),
+        ("contrast", ReadConfirmed),
+        ("black-stabilizer", Strong),
+        ("response-time", Strong),
+        ("adaptive-sync", Strong),
+        ("picture-mode", WriteConfirmed),
+        ("color-temperature", Candidate),
+        ("red-gain", Candidate),
+        ("green-gain", Candidate),
+        ("blue-gain", Candidate),
+        ("aspect-ratio", Candidate),
+        ("motion-blur", Candidate),
+        ("hdr", Candidate),
+        ("ai-scene-optimization", WriteConfirmed),
+        ("ai-upscaling", Candidate),
+        ("ai-sound", WriteConfirmed),
+        ("volume", Strong),
+        ("mute", Strong),
+        ("input", Candidate),
+        ("firmware", ReadConfirmed),
+        ("usage-hours", Candidate),
+        ("dual-mode", Candidate),
+    ];
+
+    #[test]
+    fn confidence_only_changes_on_purpose() {
+        for c in CONTROLS {
+            let pinned = PINNED.iter().find(|(id, _)| *id == c.id);
+            assert_eq!(
+                pinned.map(|p| p.1),
+                Some(c.confidence),
+                "'{}' changed confidence (or is new): update PINNED together with the \
+                 hardware evidence",
+                c.id
+            );
+        }
+        assert_eq!(
+            PINNED.len(),
+            CONTROLS.len(),
+            "PINNED lists a removed control"
+        );
+    }
+
+    /// `(fw 3.05, 2026-10-18)`: firmware, then the day a person saw it on the OSD.
+    fn has_evidence_stamp(note: &str) -> bool {
+        note.split("(fw ").skip(1).any(|rest| {
+            let Some((inside, _)) = rest.split_once(')') else {
+                return false;
+            };
+            let Some((fw, date)) = inside.split_once(", ") else {
+                return false;
+            };
+            let digits = |s: &str, n: usize| s.len() == n && s.bytes().all(|b| b.is_ascii_digit());
+            let mut d = date.split('-');
+            let (y, m, day) = (d.next(), d.next(), d.next());
+            fw.split('.').count() == 2
+                && fw
+                    .split('.')
+                    .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+                && matches!((y, m, day), (Some(y), Some(m), Some(day))
+                    if digits(y, 4) && digits(m, 2) && digits(day, 2) && d.next().is_none())
+        })
+    }
+
+    #[test]
+    fn the_stamp_checker_is_strict() {
+        assert!(has_evidence_stamp(
+            "verified on the OSD (fw 3.05, 2026-10-18)."
+        ));
+        assert!(!has_evidence_stamp("verified on the OSD"));
+        assert!(!has_evidence_stamp("(fw 3.05)"));
+        assert!(!has_evidence_stamp("(fw 3.05, 18-10-2026)"));
+        assert!(!has_evidence_stamp("(fw three, 2026-10-18)"));
+    }
+
+    #[test]
+    fn write_confirmed_means_a_person_saw_it_on_the_osd() {
+        for c in CONTROLS.iter().filter(|c| c.confidence == WriteConfirmed) {
+            assert!(
+                has_evidence_stamp(c.note),
+                "'{}' is WriteConfirmed but its note has no `(fw X.XX, YYYY-MM-DD)` stamp",
+                c.id
+            );
+        }
+    }
+
+    #[test]
+    fn read_confirmed_means_it_matched_lgs_ui() {
+        for c in CONTROLS.iter().filter(|c| c.confidence == ReadConfirmed) {
+            assert!(
+                c.note.contains("matched") || has_evidence_stamp(c.note),
+                "'{}' is ReadConfirmed but its note does not say what it matched",
+                c.id
+            );
+        }
+    }
+
+    #[test]
+    fn labs_is_exactly_the_documented_set() {
+        let mut labs: Vec<_> = CONTROLS
+            .iter()
+            .filter(|c| WritePolicy::Experimental.allows(c) && !WritePolicy::Safe.allows(c))
+            .map(|c| c.id)
+            .collect();
+        labs.sort_unstable();
+        // README.md, "What works today". Keep the two in step.
+        assert_eq!(
+            labs,
+            [
+                "adaptive-sync",
+                "black-stabilizer",
+                "mute",
+                "response-time",
+                "volume"
+            ]
+        );
+    }
+
+    #[test]
+    fn policy_never_trusts_less_than_it_says() {
+        for c in CONTROLS {
+            if WritePolicy::Safe.allows(c) {
+                assert!(
+                    c.confidence == WriteConfirmed || (c.standard && c.confidence == ReadConfirmed),
+                    "{} is writable by default on thin evidence",
+                    c.id
+                );
+            }
+            if matches!(c.confidence, Candidate | Confidence::Unknown) || c.risk == Risk::DeadEnd {
+                assert!(
+                    !WritePolicy::Experimental.allows(c),
+                    "{} must never be writable",
+                    c.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_value_table_is_well_formed() {
+        for c in CONTROLS {
+            match c.kind {
+                ValueKind::Range { min, max } => assert!(min < max, "{}", c.id),
+                ValueKind::Choice { choices } | ValueKind::SubCommand { choices, .. } => {
+                    assert!(!choices.is_empty(), "{}", c.id);
+                    let raws: HashSet<_> = choices.iter().map(|x| x.raw).collect();
+                    let labels: HashSet<_> = choices.iter().map(|x| x.label).collect();
+                    assert_eq!(raws.len(), choices.len(), "{} repeats a value", c.id);
+                    assert_eq!(labels.len(), choices.len(), "{} repeats a label", c.id);
+                }
+                ValueKind::Info => assert!(!c.writable, "{} is Info but writable", c.id),
+            }
+            assert!(!c.note.is_empty(), "{} has no evidence note", c.id);
+        }
     }
 }

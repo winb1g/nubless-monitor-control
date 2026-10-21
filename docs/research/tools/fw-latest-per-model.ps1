@@ -21,7 +21,7 @@ foreach ($line in Get-Content $ModelsFile) {
   $model = $p[0]; $suffix = if ($p.Count -gt 1) { $p[1] } else { '' }
   if (-not $model) { continue }
   $url = "$base$model$suffix/FWLatestVersion.txt"
-  $raw = & curl.exe -s -m 20 -A 'lg-firmware-watch research (read-only)' -D - $url 2>$null
+  $raw = & curl.exe -s -m 20 -A 'nubless-monitor-control research (read-only)' -D - $url 2>$null
   $text = ($raw -join "`n")
   $status = if ($text -match '^HTTP/\S+\s+(\d{3})') { $Matches[1] } else { 'ERR' }
   $lm = if ($text -match '(?im)^last-modified:\s*(.+)$') { $Matches[1].Trim() } else { '' }

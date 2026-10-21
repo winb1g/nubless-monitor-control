@@ -20,7 +20,24 @@ export interface Dialog {
   resolve: (ok: boolean) => void;
 }
 
+/** A change that can hide the picture or resync the panel, waiting to be kept. */
+export interface Keep {
+  id: string;
+  label: string;
+  /** The new value as the monitor shows it ("Fast", "70"). */
+  shown: string;
+  /** What to put back if nobody answers. */
+  before: number;
+  /** Bumps when the same control is changed again, so the countdown restarts. */
+  run: number;
+}
+
+/** How long "Keep this change?" waits. Matches --keep-window in app.css. */
+export const KEEP_MS = 5000;
+
 export const ui = $state({
+  /** The change waiting for "Keep" (reverts when the time runs out). */
+  keep: null as Keep | null,
   state: null as AppState | null,
   page: "displays" as Page,
   busy: false,
@@ -89,11 +106,50 @@ export async function setControl(id: string, value: number, opts: { quiet?: bool
   ui.state = out.state;
   const before = opts.before;
   if (opts.quiet || before == null || before === value) return;
-  const label = out.state.controls.find((c) => c.id === id)?.label ?? "Setting";
+  const control = out.state.controls.find((c) => c.id === id);
+  const label = control?.label ?? "Setting";
+  // Decided by the control, not by this call: the last write of a drag can be a
+  // no-op because a throttled one already sent the same value.
+  if (control?.confirm) {
+    askToKeep(id, label, control.display ?? String(value), before);
+    return;
+  }
   toast(`${label} updated`, "success", async () => {
     await setControl(id, before, { quiet: true });
     toast("Undone", "info");
   });
+}
+
+let keepTimer: ReturnType<typeof setTimeout> | undefined;
+let keepRun = 0;
+
+/**
+ * Ask "Keep this change?" for a risky change that already went out. Changing
+ * the same control again keeps the original `before`, so a run of tweaks is one
+ * change that is kept or put back as a whole.
+ */
+export function askToKeep(id: string, label: string, shown: string, before: number) {
+  const prior = untrack(() => ui.keep);
+  ui.keep = { id, label, shown, before: prior?.id === id ? prior.before : before, run: ++keepRun };
+  clearTimeout(keepTimer);
+  keepTimer = setTimeout(() => void revertChange(), KEEP_MS);
+}
+
+export function keepChange() {
+  clearTimeout(keepTimer);
+  ui.keep = null;
+}
+
+/** "Revert", or no answer in time: put the control back to what it was. */
+export async function revertChange() {
+  const k = untrack(() => ui.keep);
+  if (!k) return;
+  keepChange();
+  const out = await guarded(async () => (await api()).revertControl(k.id, k.before));
+  if (out) {
+    ui.state = out.state;
+    toast(`${k.label} put back`, "info");
+  }
 }
 
 export async function undo() {
