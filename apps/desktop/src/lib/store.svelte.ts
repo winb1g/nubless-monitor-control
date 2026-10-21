@@ -32,6 +32,9 @@ export interface Keep {
   run: number;
 }
 
+/** The control whose change reconnects the whole monitor (see setControl). */
+const BLANKS_SCREEN = "adaptive-sync";
+
 /** How long "Keep this change?" waits. Matches --keep-window in app.css. */
 export const KEEP_MS = 5000;
 
@@ -105,6 +108,17 @@ async function guarded<T>(fn: () => Promise<T>): Promise<T | undefined> {
  * slider drag counts as one change), so "Undo" puts back exactly that.
  */
 export async function setControl(id: string, value: number, opts: { quiet?: boolean; before?: number | null } = {}) {
+  // Switching VRR makes the whole monitor reconnect: say so first, instead of
+  // springing a black screen on the user. Putting it back (quiet) is not asked twice.
+  if (id === BLANKS_SCREEN && !opts.quiet) {
+    const ok = await ask({
+      title: "Switch Adaptive-Sync?",
+      body: "Your screen will go black for a few seconds while the monitor reconnects, and nubless can't talk to it until it's back. Nothing is wrong when that happens. Save your work if a game or video is running.",
+      confirm: "Switch",
+      cancel: "Not now",
+    });
+    if (!ok) return;
+  }
   const name = untrack(() => ui.state)?.controls.find((c) => c.id === id)?.label ?? "Setting";
   // Most writes answer at once. If this one does not, say what we are waiting for.
   const slow = setTimeout(() => (ui.waiting = name), 600);
@@ -120,7 +134,8 @@ export async function setControl(id: string, value: number, opts: { quiet?: bool
   const label = control?.label ?? "Setting";
   // Decided by the control, not by this call: the last write of a drag can be a
   // no-op because a throttled one already sent the same value.
-  if (control?.confirm) {
+  // VRR can't strand you on a bad picture, so it gets the warning above and a plain Undo.
+  if (control?.confirm && id !== BLANKS_SCREEN) {
     askToKeep(id, label, control.display ?? String(value), before);
     return;
   }

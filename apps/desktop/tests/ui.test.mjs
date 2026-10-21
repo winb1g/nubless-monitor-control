@@ -114,7 +114,7 @@ test("Revert puts the old value back at once", async () => {
 test("no answer in 5 seconds puts the old value back", async () => {
   await open();
   await labsOn();
-  await segment("Adaptive-Sync/VRR", "Off").click();
+  await segment("Response Time", "Faster").click();
   await page.clock.runFor(300);
   await prompt().waitFor();
   await page.clock.runFor(4000);
@@ -122,6 +122,26 @@ test("no answer in 5 seconds puts the old value back", async () => {
   await page.clock.runFor(1500);
   await page.clock.runFor(300);
   await prompt().waitFor({ state: "hidden" });
+  assert.equal(await segment("Response Time", "Fast").getAttribute("aria-pressed"), "true");
+});
+
+test("switching VRR sets expectations first, then offers a plain Undo, not Keep", async () => {
+  await open();
+  await labsOn();
+  await segment("Adaptive-Sync/VRR", "Off").click();
+  const dialog = page.getByRole("alertdialog");
+  await dialog.waitFor();
+  assert.match(await dialog.innerText(), /go black for a few seconds/);
+  await dialog.getByRole("button", { name: "Not now" }).click();
+  await page.clock.runFor(300);
+  assert.equal(await segment("Adaptive-Sync/VRR", "Extended").getAttribute("aria-pressed"), "true");
+  await segment("Adaptive-Sync/VRR", "Off").click();
+  await dialog.getByRole("button", { name: "Switch" }).click();
+  await page.clock.runFor(500);
+  assert.equal(await segment("Adaptive-Sync/VRR", "Off").getAttribute("aria-pressed"), "true");
+  assert.equal(await prompt().count(), 0, "no Keep prompt");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.clock.runFor(500);
   assert.equal(await segment("Adaptive-Sync/VRR", "Extended").getAttribute("aria-pressed"), "true");
 });
 
@@ -236,6 +256,7 @@ test("an error stays on screen until dismissed, and the app stays usable", async
   await open({ query: "?preview=fail-vrr" });
   await labsOn();
   await segment("Adaptive-Sync/VRR", "Off").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Switch" }).click();
   await page.clock.runFor(500);
   const error = page.getByText(/did not apply 'adaptive-sync'/);
   await error.waitFor();
