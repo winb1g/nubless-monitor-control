@@ -7,7 +7,13 @@ The mock monitor, the fault tests and the browser tests already prove the *softw
 ## Before you start (5 minutes)
 
 1. Quit LG Switch (its service also talks DDC/CI). DDC/CI must be on in the monitor's menu.
-2. Run the app from this branch (`cd apps/desktop && npm install && npx tauri dev`) or from a test build if one was shared. About → "Monitor firmware" shows the firmware: write it down.
+2. Run the app from this branch. On Windows, one command does it all (installs what's missing, fetches the branch, starts the app); paste it into PowerShell:
+
+   ```powershell
+   irm https://raw.githubusercontent.com/winb1g/nubless-monitor-control/claude/admiring-sagan-1dh6ll/scripts/try-branch.ps1 | iex
+   ```
+
+   (Or by hand: `cd apps/desktop && npm ci && npx tauri dev`, with Git, Node 20+, Rust and the C++ build tools installed.) A test build works too if one was shared. About → "Monitor firmware" shows the firmware: write it down.
 3. Open **Settings → Labs** and turn it on. Your original settings are saved automatically the first time the app connects; **Settings → Reset to my original settings** puts everything back at the end.
 4. Open **Displays** and keep the OSD up next to it.
 
