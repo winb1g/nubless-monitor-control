@@ -60,7 +60,7 @@ Re-read on 2026-10-18 with `tools/vcp-read.ps1`. "Value meaning" uses LG's own e
 | `0xF7` | `RESPONSE_TIME` | 2 | `0 Off, 1 HIGH, 2 MIDDLE, 3 LOW` | UI *Fast* |
 | `0xF8` | `FREE_SYNC` | 3 | `0 Off, 1 On, 2 Basic, 3 Extended` | UI *Extended* ✔ |
 | `0xF9` | `BLACK_STABILIZER` | 50 | 0–255 range; enum `OFF/LOW/MIDDLE/HIGH` is for other models | UI *50* ✔ |
-| `0xFA` | `MOTION_BLUR` | 2 | unknown scale | not in screenshots |
+| `0xFA` | `MOTION_BLUR` | 2 | unknown scale; declared `00 01`, so 2 may mean "unavailable": the setting only exists while Adaptive-Sync is Off ([`../rules.md`](../rules.md)) | not in screenshots (hidden while Adaptive-Sync was on) |
 | `0x62` / `0x8D` | `VOLUME` / `AUDIO_MUTE` | 20 / 2 | volume 0–100; mute 1 = muted, 2 = unmuted | n/a |
 | `0x69` / `0x6A` | `COLOR_TEMP_VALUE` / `COLOR_TEMP_LIST` | 6500 / `0x020F` | kelvin / bitmask over `T_E_COLOR_TEMP` (bits 0-3, 9 → Warm, Medium, Cool, Custom, Manual3) | UI *Manual* |
 | `0xB1` | `MONITOR_DUAL_MODE` | `0x2200` | high byte `0x22` = `SWITCH_OFF`; sub-commands `0x01/0x02` on/off lists, `0x11/0x12` last on/off, `0x20` option, `0x21/0x22` switch on/off, `0x2F` switch | UI *Off (Full Wide)* |

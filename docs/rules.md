@@ -34,6 +34,23 @@ Note: `SoC` in LG's names is the monitor's own AI chip, so **AI Scene Optimizati
 
 Open question: LG may show its question even when nothing would be turned off. nubless asks only when something would change; tracked in `verify-on-hardware.md`.
 
+## Observed on the monitor (not from LG Switch)
+
+These interlocks were found by using the real monitor, not by reading LG Switch's resources, so there is no resource key to cite. They are recorded with the date, the firmware and what is still unknown. None is implemented in `rules.rs` yet.
+
+| Observation | Seen | Implemented? |
+|---|---|---|
+| **Motion Blur Reduction is only available while Adaptive-Sync is Off.** Turning Adaptive-Sync **Off** makes Motion Blur Reduction available; it stays unavailable while Adaptive-Sync is **Basic** or **Extended**. | 2026-10-21, 27GM950B, firmware 3.05, found by the owner while testing | No. Motion Blur Reduction (`0xFA`) is still read-only (`Candidate`), so there is nothing to block yet. |
+
+What this implies once Motion Blur Reduction becomes writable (neither is built yet):
+- It would be refused with "turn Adaptive-Sync off first" while Adaptive-Sync is Basic or Extended, the same shape as the PBP/PIP rows above.
+- Turning Adaptive-Sync **on** (Basic or Extended) would need to say what happens to Motion Blur Reduction if it was on. Whether the monitor switches it off, keeps the setting hidden, or refuses is not known.
+
+Still to record on the monitor (also in [`verify-on-hardware.md`](verify-on-hardware.md)):
+- Where it appears (monitor menu, LG Switch, or both) and what its options are. It was missing from the first menu inventory ([`research/10-osd-inventory.md`](research/10-osd-inventory.md)), which was taken with Adaptive-Sync on.
+- Its raw values on `0xFA`. The monitor declares `00 01` but read **2** while Adaptive-Sync was Extended, so 2 is probably "unavailable" rather than a setting.
+- Whether the setting you had survives a trip through Basic or Extended.
+
 ## Tests
 
 `cargo test -p nubless-core rules` checks every combination of the six state bits: at most one smart feature is on after any action, PBP/PIP always wins, no AI feature is on in a non-AI picture mode, turning off never asks, and every unavailable control explains itself.

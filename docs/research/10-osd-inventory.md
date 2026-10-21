@@ -12,6 +12,7 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | **Game Adjust** | Game Mode (picture mode) | Personalized Picture, Gamer 1, Gamer 2, FPS, RTS, Vivid, Reader, HDR Effect, sRGB, DCI-P3, Color Weakness, Max Brightness, Calibration 1, Calibration 2 (**14**) | ◐ `0x15`: 8 of 14 (Personalized, Gamer 1/2, FPS, DCI-P3, Color Weakness, Calibration 1/2) | Read `0x15` in RTS, Vivid, Reader, HDR Effect, sRGB, Max Brightness |
 | | Dual-Mode | Off (Full Wide), Off (24.5"), On (Full Wide), On (24.5") | ◐ `0xB1` reads `0x2200` = Off (Full Wide); write channel on the deny-list | Read `0xB1` in all four |
 | | Adaptive Sync | Extended, Basic, Off | ✔ read · Labs write `0xF8` (3 / 2 / 0) | Test card |
+| | Motion Blur Reduction | not in the first inventory: **only available while Adaptive Sync is Off** ([`../rules.md`](../rules.md)); options not recorded | ◐ `0xFA` reads 2 (declared `00 01`) and is read-only | With Adaptive Sync Off: record the options, read `0xFA` in each |
 | | Black Stabilizer | slider 0–100 | ✔ read · Labs write `0xF9` (0–100) | Test card |
 | | Response Time | Faster, Fast, Normal, **Off** | ✔ read · Labs write `0xF7` (1 / 2 / 3, **0 = Off**) | Test card |
 | | Crosshair | red plus, green plus, red dot, green dot, off | ○ | Probe diff |

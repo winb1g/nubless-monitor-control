@@ -217,7 +217,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "motion-blur", label: "Motion Blur Reduction", vcp: 0xFA, kind: ValueKind::Info,
         confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "LG MOTION_BLUR reads 2; scale unknown.",
+        note: "LG MOTION_BLUR reads 2 (the capabilities string declares FA(00 01)); scale unknown. Only available while Adaptive-Sync is Off: it is unavailable in Basic and Extended (seen on the monitor 2026-10-21, docs/rules.md), so 2 may mean unavailable.",
     },
     Control {
         id: "hdr", label: "HDR", vcp: 0xE2, kind: ValueKind::Info,
