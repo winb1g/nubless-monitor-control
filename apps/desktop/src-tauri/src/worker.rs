@@ -8,7 +8,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use nubless_core::baseline;
-use nubless_core::controller::{ControlError, Snapshot};
+use nubless_core::controller::{Applied, ControlError, Snapshot};
 use nubless_core::journal::Journal;
 use nubless_core::mock::MockMonitor;
 use nubless_core::paths;
@@ -467,6 +467,9 @@ impl Worker {
         let control = conn.ctl.control(id).map_err(|e| e.to_string())?;
         let applied = match conn.ctl.write(id, value) {
             Ok(a) => a,
+            // The panel is resyncing and the monitor went quiet (or its link was
+            // reopened by Windows): reconnect and ask again instead of calling it failed.
+            Err(ControlError::Silent { .. }) => self.after_silence(id, value)?,
             Err(e) => {
                 // The write was refused or rolled back: show what the monitor really has.
                 if let Ok(r) = conn.ctl.read(control.id) {
@@ -474,6 +477,9 @@ impl Worker {
                 }
                 return Err(e.to_string());
             }
+        };
+        let Some(conn) = self.conn.as_mut() else {
+            return Err("The monitor is not connected".into());
         };
         conn.values.insert(control.id, Some(applied.new));
         let label = control.label;
@@ -483,6 +489,24 @@ impl Worker {
             toast: changed.then(|| format!("{label} updated")),
             undoable: changed,
         })
+    }
+
+    /// Reopen the display until it answers, then settle the pending write.
+    fn after_silence(&mut self, id: &str, value: u16) -> Result<Applied, String> {
+        for _ in 0..6 {
+            thread::sleep(std::time::Duration::from_secs(2));
+            self.scan();
+            let Some(conn) = self.conn.as_mut() else {
+                continue;
+            };
+            match conn.ctl.settle_silent(id, value) {
+                Ok(a) => return Ok(a),
+                Err(ControlError::Silent { .. }) => {}
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        Err("The monitor stopped answering after the change and has not come back.              Look at the screen: the change may have applied. Reconnect from Displays."
+            .into())
     }
 
     fn revert(&mut self, id: &str, value: u16) -> Result<Outcome, String> {

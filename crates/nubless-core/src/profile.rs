@@ -97,6 +97,24 @@ impl Control {
         }
     }
 
+    /// Black Stabilizer takes writes in steps of one but reads back five times that
+    /// (write 10, read 50; writes above 20 are refused). `write_div` is how much
+    /// bigger a read is than the number that goes on the wire; 1 for everything else.
+    /// Measured on fw 3.05, 2026-10-21.
+    pub fn write_div(&self) -> u16 {
+        if self.vcp == 0xF9 && matches!(self.kind, ValueKind::Range { .. }) {
+            5
+        } else {
+            1
+        }
+    }
+
+    /// The nearest value this control can actually be set to.
+    pub fn snap(&self, v: u16) -> u16 {
+        let d = self.write_div();
+        (v + d / 2) / d * d
+    }
+
     pub fn value_is_valid(&self, raw: u16) -> bool {
         match self.kind {
             ValueKind::Range { min, max } => (min..=max).contains(&raw),

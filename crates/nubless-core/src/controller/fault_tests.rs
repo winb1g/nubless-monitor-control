@@ -375,3 +375,44 @@ fn a_thousand_write_read_cycles_leave_no_stuck_state() {
     assert!(c.restore(&baseline).iter().all(|(_, r)| r.is_ok()));
     assert_eq!(c.snapshot(), baseline);
 }
+
+#[test]
+fn a_silent_monitor_is_not_rolled_back_and_settles_once_it_answers() {
+    let mut m = MockMonitor::gm950b();
+    m.faults.quiet_after_write.insert(0xF8, 10_000);
+    let mut c = ctl(m, WritePolicy::Experimental);
+    assert!(matches!(
+        c.write("adaptive-sync", 0),
+        Err(ControlError::Silent { .. })
+    ));
+    assert_eq!(
+        c.transport.writes.len(),
+        1,
+        "no corrective write while silent"
+    );
+    assert_eq!(c.journal().entries[0].state, EntryState::Pending);
+    // Still quiet: stays pending. Once it answers with the new value: applied.
+    assert!(matches!(
+        c.settle_silent("adaptive-sync", 0),
+        Err(ControlError::Silent { .. })
+    ));
+    c.transport.faults.quiet_after_write.clear();
+    c.transport.quiet.clear();
+    assert!(c.settle_silent("adaptive-sync", 0).is_ok());
+    assert_eq!(c.journal().entries[0].state, EntryState::Applied);
+}
+
+#[test]
+fn black_stabilizer_is_written_in_fifths_and_read_whole() {
+    // Measured on fw 3.05: write 10 reads 50, writes above 20 are refused.
+    let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Experimental);
+    let a = c.write("black-stabilizer", 80).unwrap();
+    assert_eq!(a.new, 80);
+    assert_eq!(c.transport.writes, vec![(0xF9, 16)]);
+    assert_eq!(c.read("black-stabilizer").unwrap().current, 80);
+    // A value between steps lands on the nearest one.
+    assert_eq!(c.write("black-stabilizer", 53).unwrap().new, 55);
+    // Putting back the original goes through the same scale.
+    c.revert(0).unwrap();
+    assert_eq!(c.read("black-stabilizer").unwrap().current, 50);
+}

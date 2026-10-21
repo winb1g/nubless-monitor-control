@@ -73,6 +73,11 @@ pub enum ControlError {
         got: Option<u16>,
         outcome: &'static str,
     },
+    /// A write that resyncs the panel went out, then the monitor stopped
+    /// answering for longer than we wait. It may well have applied; nothing was
+    /// rolled back, because a blind write into a resyncing panel proves nothing.
+    #[error("sent '{id}' = {wanted}, but the monitor did not answer afterwards (it may still be switching); nothing was rolled back")]
+    Silent { id: &'static str, wanted: u16 },
     #[error("nothing to undo")]
     NothingToUndo,
     #[error("these settings belong to {saved}. Switch your monitor to {saved} first (it's on {current} now), then try again.")]
@@ -254,6 +259,7 @@ impl<T: Transport> Controller<T> {
     /// Change a control. See the module docs for the sequence.
     pub fn write(&mut self, id: &str, value: u16) -> Result<Applied, ControlError> {
         let control = self.control(id)?;
+        let value = control.snap(value);
         // Validate first so a forbidden write costs no DDC traffic at all.
         let validated = safety::check_write(control, value, &self.caps, self.policy)?;
         let old = self
@@ -278,6 +284,44 @@ impl<T: Transport> Controller<T> {
             new: value,
             needs_confirmation,
         })
+    }
+
+    /// After [`ControlError::Silent`]: read the control again (the caller has
+    /// reconnected by now) and settle the pending journal entry by what the
+    /// monitor says. `Ok` means the change did land.
+    pub fn settle_silent(&mut self, id: &str, wanted: u16) -> Result<Applied, ControlError> {
+        let control = self.control(id)?;
+        let index = self
+            .journal
+            .entries
+            .iter()
+            .rposition(|e| e.control == control.id && e.state == EntryState::Pending)
+            .ok_or(ControlError::NothingToUndo)?;
+        let old = self.journal.entries[index].old;
+        match self.verify_read(control) {
+            Some(v) if v == wanted => {
+                self.journal.set_state(index, EntryState::Applied);
+                Ok(Applied {
+                    journal_index: Some(index),
+                    old,
+                    new: wanted,
+                    needs_confirmation: control.needs_confirm_or_revert(),
+                })
+            }
+            Some(v) => {
+                self.journal.set_state(index, EntryState::RolledBack);
+                Err(ControlError::NotApplied {
+                    id: control.id,
+                    wanted,
+                    got: Some(v),
+                    outcome: "the monitor kept its previous value",
+                })
+            }
+            None => Err(ControlError::Silent {
+                id: control.id,
+                wanted,
+            }),
+        }
     }
 
     /// Undo one journal entry by writing back the value it replaced.
@@ -414,7 +458,7 @@ impl<T: Transport> Controller<T> {
         // For a sub-command the monitor reports only the argument byte.
         let expected = match control.kind {
             ValueKind::SubCommand { .. } => write.value() & 0xFF,
-            _ => write.value(),
+            _ => write.value() * control.write_div(),
         };
         // A monitor that is still applying the change (response time and VRR
         // resync the panel) can answer with the old value once. Look again before
@@ -437,6 +481,14 @@ impl<T: Transport> Controller<T> {
         if sent.is_ok() && back == Some(expected) {
             self.journal.set_state(index, EntryState::Applied);
             return Ok(());
+        }
+        // Still silent after the whole wait: leave the entry pending (so it stays
+        // undoable) and let the caller reconnect and look again with `settle_silent`.
+        if sent.is_ok() && back.is_none() && control.risk == Risk::Resync {
+            return Err(ControlError::Silent {
+                id: control.id,
+                wanted: expected,
+            });
         }
         // Not taken, or we cannot tell: put the old value back so the user is
         // never left in a state the app did not intend.
@@ -530,6 +582,7 @@ fn check_restore(
                 }
                 _ => return Err(SafetyError::ReadOnly { id: control.id }),
             };
+            let full = full / control.write_div();
             safety::check_write(control, probe, caps, relaxed).map(|w| w.with_value(full))
         }
         Err(e) => Err(e),
@@ -625,17 +678,17 @@ mod tests {
     #[test]
     fn snapshot_restore_round_trip_including_out_of_range_values() {
         let mut m = MockMonitor::gm950b();
-        // Black Stabilizer reports max 255; a value above our 0-100 UI range
-        // must still be restorable, or the user would need the OSD to get it back.
-        m.values.get_mut(&0xF9).unwrap().current = 180;
+        // Contrast's safe range starts at 20; a lower value the monitor itself
+        // reported must still be restorable, or the user would need the OSD to get it back.
+        m.values.get_mut(&0x12).unwrap().current = 10;
         let mut c = ctl(m, WritePolicy::Experimental);
         let snap = c.snapshot();
-        assert_eq!(snap.values["black-stabilizer"], 180);
-        c.write("black-stabilizer", 20).unwrap();
+        assert_eq!(snap.values["contrast"], 10);
+        c.write("contrast", 60).unwrap();
         c.write("brightness", 5).unwrap();
         let results = c.restore(&snap);
         assert!(results.iter().all(|(_, r)| r.is_ok()), "{results:?}");
-        assert_eq!(c.read("black-stabilizer").unwrap().current, 180);
+        assert_eq!(c.read("contrast").unwrap().current, 10);
         assert_eq!(c.read("brightness").unwrap().current, 80);
     }
 

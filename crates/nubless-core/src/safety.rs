@@ -180,7 +180,10 @@ pub fn check_write(
     if sub.is_none() && !caps.declares(control.vcp) {
         return Err(SafetyError::NotDeclared { code: control.vcp });
     }
-    if !control.value_is_valid(value) || (sub.is_some() && value > 0xFE) {
+    if !control.value_is_valid(value)
+        || (sub.is_some() && value > 0xFE)
+        || value % control.write_div() != 0
+    {
         return Err(SafetyError::InvalidValue {
             id: control.id,
             value,
@@ -189,7 +192,7 @@ pub fn check_write(
     }
     Ok(ValidatedWrite {
         code: control.vcp,
-        value: sub.map_or(value, |s| (u16::from(s) << 8) | value),
+        value: sub.map_or(value / control.write_div(), |s| (u16::from(s) << 8) | value),
     })
 }
 

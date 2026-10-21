@@ -41,6 +41,8 @@ export const ui = $state({
   state: null as AppState | null,
   page: "displays" as Page,
   busy: false,
+  /** A write the monitor is slow to answer (a resync can take seconds), shown after a short delay. */
+  waiting: null as string | null,
   toasts: [] as Toast[],
   dialog: null as Dialog | null,
   updateBadge: false,
@@ -103,7 +105,13 @@ async function guarded<T>(fn: () => Promise<T>): Promise<T | undefined> {
  * slider drag counts as one change), so "Undo" puts back exactly that.
  */
 export async function setControl(id: string, value: number, opts: { quiet?: boolean; before?: number | null } = {}) {
-  const out = await guarded(async () => (await api()).setControl(id, value));
+  const name = untrack(() => ui.state)?.controls.find((c) => c.id === id)?.label ?? "Setting";
+  // Most writes answer at once. If this one does not, say what we are waiting for.
+  const slow = setTimeout(() => (ui.waiting = name), 600);
+  const out = await guarded(async () => (await api()).setControl(id, value)).finally(() => {
+    clearTimeout(slow);
+    ui.waiting = null;
+  });
   if (!out) return;
   ui.state = out.state;
   const before = opts.before;

@@ -48,7 +48,7 @@ pub struct MockMonitor {
     pub faults: Faults,
     /// Old readings still being served after a write (see [`Faults::stale_reads`]).
     stale: BTreeMap<u8, (u32, VcpReading)>,
-    quiet: BTreeMap<u8, u32>,
+    pub(crate) quiet: BTreeMap<u8, u32>,
     reads: u32,
     pub writes: Vec<(u8, u16)>,
     /// LG AI channel state per sub-command (0xA6): 2 = AI Scene Optimization,
@@ -190,6 +190,15 @@ impl Transport for MockMonitor {
             current: 0,
             max: 0xFFFF,
         });
+        // Like the real unit, Black Stabilizer is written in fifths and read back whole;
+        // it refuses anything past 20.
+        if write.code() == 0xF9 {
+            if write.value() > 20 {
+                return Ok(());
+            }
+            entry.current = write.value() * 5;
+            return Ok(());
+        }
         entry.current = write.value();
         Ok(())
     }
