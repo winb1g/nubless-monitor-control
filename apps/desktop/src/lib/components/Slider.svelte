@@ -31,16 +31,25 @@
   const floorPct = $derived(((control.min - base) / span) * 100);
 
   // Drags are throttled to the monitor's pace; the last value always goes out.
-  function send(v: number, final: boolean) {
+  function send(v: number, final: boolean): Promise<void> | undefined {
     clearTimeout(timer);
     const now = performance.now();
     if (final || now - lastSent > 220) {
       lastSent = now;
-      setControl(control.id, v, final ? { before: gestureStart } : { quiet: true });
+      const done = setControl(control.id, v, final ? { before: gestureStart } : { quiet: true });
       if (final) gestureStart = null;
-    } else {
-      timer = setTimeout(() => send(v, final), 220 - (now - lastSent));
+      return done;
     }
+    timer = setTimeout(() => send(v, final), 220 - (now - lastSent));
+  }
+
+  // Show the target until the monitor has answered and the real value is in. A fixed
+  // timeout let the bar jump back to the old value while a slow write was still going.
+  function letGo(done: Promise<void> | undefined) {
+    clearTimeout(settle);
+    void (done ?? Promise.resolve()).finally(() => {
+      if (!dragging && gestureStart === null) local = null;
+    });
   }
 
   // The input spans the whole scale; anything under the floor snaps back to it.
@@ -61,9 +70,7 @@
   function onchange(e: Event) {
     const v = pinned(e);
     dragging = false;
-    send(v, true);
-    clearTimeout(settle);
-    settle = setTimeout(() => (local = null), 400);
+    letGo(send(v, true));
   }
 
   // Fine adjust: each press moves one step and goes out at the throttled pace.
@@ -76,10 +83,7 @@
     local = v;
     send(v, false);
     clearTimeout(settle);
-    settle = setTimeout(() => {
-      send(local ?? v, true);
-      settle = setTimeout(() => (local = null), 400);
-    }, 500);
+    settle = setTimeout(() => letGo(send(local ?? v, true)), 500);
   }
   function hold(dir: 1 | -1) {
     step(dir);
