@@ -21,6 +21,12 @@ Each item needs a person with the monitor. The exact commands and what to look f
 - [ ] AI Upscaling: which value is Off / Low / High? (A real unit reported 1 while LG Switch showed Off.)
 - [ ] **Dual-Mode** `0xB1`: what does *Conversion* send? (Read-only until understood.)
 
+## Motion Blur Reduction (needs Adaptive-Sync Off)
+
+- [ ] With Adaptive-Sync **Off**, open Motion Blur Reduction and write down every option; read `0xFA` in each (`nubless probe diff` around one change).
+- [ ] Set Adaptive-Sync to Basic, then Extended: does Motion Blur Reduction switch off by itself, stay as it was but hidden, or keep its value? What does `0xFA` read?
+- [ ] Back to Off: is the earlier Motion Blur setting still there?
+
 ## Keep or revert (5 s)
 
 - [ ] CLI: a risky change with no answer is put back after 5 s and the OSD agrees (`--revert-after` changes the time).

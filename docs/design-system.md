@@ -5,9 +5,9 @@ The desktop UI (`apps/desktop`) has one source of truth for how things look and 
 | What | Where |
 |---|---|
 | Tokens: color, radius, spacing, type, motion | `src/app.css` (`:root`, plus two dark-theme blocks) |
-| Shared classes: `.page`, `.page-head`, `.subtitle`, `.btn`, `.link`, `.tag`, `.eyebrow`, `.mono`, `.muted`, `.small`, `.skeleton`, `.hatch`, `.led` | `src/app.css` |
+| Shared classes: `.page`, `.page-head`, `.subtitle`, `.btn`, `.link`, `.tag`, `.eyebrow`, `.mono`, `.muted`, `.small`, `.skeleton`, `.hatch`, `.blocked`, `.led` | `src/app.css` |
 | Svelte transition presets | `src/lib/motion.ts` (durations read from `app.css`) |
-| Building blocks: `Section`, `Item`, `Toggle`, `Slider`, `Segmented`, `ModePicker`, `Lock`, `KeepOrRevert`, `Hint`, `Logo`, `MonitorArt` | `src/lib/components/` |
+| Building blocks: `Section`, `Item`, `Toggle`, `Slider`, `Segmented`, `ModePicker`, `Lock`, `BlockedZone`, `KeepOrRevert`, `Hint`, `Logo`, `MonitorArt` | `src/lib/components/` |
 | How picture modes are named and grouped | `src/lib/modes.ts` |
 | Every component in every state, light and dark | the design kit: `npm run dev`, then open `/#/kit` |
 | Enforcement | `node scripts/lint-tokens.mjs` (`npm run lint:tokens`), and the browser tests in `tests/ui.test.mjs` (`npm run test:ui`), both run in CI |
@@ -88,6 +88,7 @@ Need a duration in script (a timeout that matches an animation)? Use `ms("fast")
 - **`Segmented`**: a choice among a few named values; the selected one is an ink fill.
 - **`ModePicker`**: the picture mode. `layout="chips"` shows every mode at once, grouped by use (Everyday, Gaming, Color work, Accessibility; see `modes.ts`). `layout="stepper"` is `‹ name ›` with a position counter and ticks, and writes only the mode you stop on (400ms), so passing over modes never reaches the monitor. Both go through `pickPictureMode`, so the AI-feature interlock still asks first.
 - **`KeepOrRevert`**: "Keep this change?" for a control whose `confirm` flag is set (it can hide the picture or resync the panel: contrast, Black Stabilizer, Response Time, Adaptive-Sync). The change has already gone out; unless it is kept within `--keep-window` (5 s) it is put back, through the same restore rules as Undo, so even a value below a slider's range comes back. It sits at the top of the toast stack, so it never overlaps a toast. Changing the same control again keeps the first "before" and restarts the countdown, so a run of tweaks is kept or put back as one change. It replaces the Undo toast for those controls; other controls keep the Undo toast. It is driven by `askToKeep` / `keepChange` / `revertChange` in `store.svelte.ts`.
+- **`BlockedZone`**: the part of a bar that can't be used (`.blocked`: slanted ticks that never move, with a padlock on a plate so the ticks don't run through it; `compact` drops the padlock). `Slider` shows one whenever a control's safe range starts above 0 (Contrast: 20): the bar is drawn on the monitor's own 0-to-max scale so the handle sits where the monitor's menu puts it, and the blocked part can't be dragged into. Use it for any other bar with a floor.
 - **`Lock`**: why a control can't be used. Labs controls get the flask and `LABS`; anything else gets the padlock and a dashed `LOCKED` tag. Click for the reason.
 - **`Hint`**, **`Logo`**, **`MonitorArt`** (the dashed "no signal" drawing for the empty state).
 

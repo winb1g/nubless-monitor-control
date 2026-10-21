@@ -20,6 +20,17 @@
   const left = $derived(Math.max(0, Math.ceil((KEEP_MS - (now - start)) / 1000)));
 </script>
 
+{#if ui.waiting}
+  <div class="keep waiting" role="status" aria-live="polite" in:fly={toastIn} out:fly={toastOut}>
+    <span class="label">Wait</span>
+    <span class="text">
+      {ui.waiting}: waiting for the monitor
+      <span class="clock">The screen can go dark for a few seconds while it switches.</span>
+    </span>
+    <span class="timer busy"></span>
+  </div>
+{/if}
+
 {#if ui.keep}
   <div class="keep" role="group" aria-label="Keep this change?" in:fly={toastIn} out:fly={toastOut}>
       <span class="label">Keep?</span>
@@ -101,6 +112,28 @@
     background: var(--toast-warn);
     transform-origin: left;
     animation: shrink var(--keep-window) linear forwards;
+  }
+  .waiting {
+    padding-right: 14px;
+  }
+  .timer.busy {
+    animation: sweep var(--slow) ease-in-out infinite;
+    width: 40%;
+    transform-origin: left;
+  }
+  @keyframes sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .timer.busy {
+      animation: none;
+      width: 100%;
+    }
   }
   @keyframes shrink {
     to {

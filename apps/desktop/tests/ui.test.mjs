@@ -114,7 +114,7 @@ test("Revert puts the old value back at once", async () => {
 test("no answer in 5 seconds puts the old value back", async () => {
   await open();
   await labsOn();
-  await segment("Adaptive-Sync/VRR", "Off").click();
+  await segment("Response Time", "Faster").click();
   await page.clock.runFor(300);
   await prompt().waitFor();
   await page.clock.runFor(4000);
@@ -122,6 +122,26 @@ test("no answer in 5 seconds puts the old value back", async () => {
   await page.clock.runFor(1500);
   await page.clock.runFor(300);
   await prompt().waitFor({ state: "hidden" });
+  assert.equal(await segment("Response Time", "Fast").getAttribute("aria-pressed"), "true");
+});
+
+test("switching VRR sets expectations first, then offers a plain Undo, not Keep", async () => {
+  await open();
+  await labsOn();
+  await segment("Adaptive-Sync/VRR", "Off").click();
+  const dialog = page.getByRole("alertdialog");
+  await dialog.waitFor();
+  assert.match(await dialog.innerText(), /go black for a few seconds/);
+  await dialog.getByRole("button", { name: "Not now" }).click();
+  await page.clock.runFor(300);
+  assert.equal(await segment("Adaptive-Sync/VRR", "Extended").getAttribute("aria-pressed"), "true");
+  await segment("Adaptive-Sync/VRR", "Off").click();
+  await dialog.getByRole("button", { name: "Switch" }).click();
+  await page.clock.runFor(500);
+  assert.equal(await segment("Adaptive-Sync/VRR", "Off").getAttribute("aria-pressed"), "true");
+  assert.equal(await prompt().count(), 0, "no Keep prompt");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.clock.runFor(500);
   assert.equal(await segment("Adaptive-Sync/VRR", "Extended").getAttribute("aria-pressed"), "true");
 });
 
@@ -227,7 +247,39 @@ test("every page opens without errors", async () => {
   }
 });
 
+test("a slider's handle sits at its value on the monitor's own scale, even with a floor", async () => {
+  await open();
+  // Contrast's safe range starts at 20, but 70 is still 70% along the bar.
+  const where = await page.evaluate(() => {
+    const bar = document.querySelector("input#slider-contrast").parentElement.querySelector(".bar");
+    const fill = bar.querySelector("i").getBoundingClientRect();
+    const box = bar.getBoundingClientRect();
+    return (fill.right - box.left) / box.width;
+  });
+  assert.ok(Math.abs(where - 0.7) < 0.03, `handle at ${where}`);
+  assert.equal(await slider("contrast").inputValue(), "70");
+});
+
 test("with no monitor found, the empty state offers the demo", async () => {
   await open({ query: "?preview=empty" });
   await page.getByRole("button", { name: /demo/i }).first().waitFor();
+});
+
+test("an error stays on screen until dismissed, and the app stays usable", async () => {
+  await open({ query: "?preview=fail-vrr" });
+  await labsOn();
+  await segment("Adaptive-Sync/VRR", "Off").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Switch" }).click();
+  await page.clock.runFor(500);
+  const error = page.getByText(/did not apply 'adaptive-sync'/);
+  await error.waitFor();
+  // Long enough to read it, copy it, or take a screenshot.
+  await page.clock.runFor(30_000);
+  assert.ok(await error.isVisible(), "the error is still there after 30 s");
+  // Nothing else went dead.
+  assert.ok(await slider("brightness").isEnabled());
+  assert.ok(await segment("Response Time", "Fast").isEnabled());
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await page.clock.runFor(500);
+  await error.waitFor({ state: "hidden" });
 });

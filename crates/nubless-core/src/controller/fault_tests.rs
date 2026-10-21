@@ -105,6 +105,44 @@ fn a_lagging_read_back_does_not_undo_a_change_that_landed() {
 }
 
 #[test]
+fn a_monitor_that_goes_quiet_while_the_panel_resyncs_is_waited_for() {
+    // Turning VRR off blanks the panel; the monitor answers nothing for seconds.
+    let mut m = MockMonitor::gm950b();
+    m.faults.quiet_after_write.insert(0xF8, 12);
+    let mut c = ctl(m, WritePolicy::Experimental);
+    let a = c.write("adaptive-sync", 0).unwrap();
+    assert!(a.needs_confirmation);
+    assert_eq!(c.read("adaptive-sync").unwrap().current, 0);
+    assert_eq!(c.journal().entries[0].state, EntryState::Applied);
+    assert_eq!(
+        c.transport.writes.len(),
+        1,
+        "no corrective write while it was busy"
+    );
+}
+
+#[test]
+fn a_monitor_that_never_comes_back_is_reported_in_plain_words() {
+    let mut m = MockMonitor::gm950b();
+    m.faults.quiet_after_write.insert(0xF8, 10_000);
+    let mut c = ctl(m, WritePolicy::Experimental);
+    let err = c.write("adaptive-sync", 0).unwrap_err();
+    let text = err.to_string();
+    assert!(text.contains("did not answer"), "{text}");
+    assert!(!text.contains("None"), "{text}");
+}
+
+#[test]
+fn a_refusal_is_not_mistaken_for_a_busy_monitor() {
+    // The monitor answers with the old value: it said no. Do not wait it out.
+    let mut m = MockMonitor::gm950b();
+    m.ignore_writes_to.push(0xF8);
+    let mut c = ctl(m, WritePolicy::Experimental);
+    let err = c.write("adaptive-sync", 0).unwrap_err();
+    assert!(err.to_string().contains("it reads 3"), "{err}");
+}
+
+#[test]
 fn all_zero_replies_are_not_values() {
     // Some LG firmware answers codes it does not implement with 0 / 0. Writing
     // "the old value" back to that would be inventing a value.
@@ -336,4 +374,45 @@ fn a_thousand_write_read_cycles_leave_no_stuck_state() {
         .all(|e| e.state == EntryState::Applied));
     assert!(c.restore(&baseline).iter().all(|(_, r)| r.is_ok()));
     assert_eq!(c.snapshot(), baseline);
+}
+
+#[test]
+fn a_silent_monitor_is_not_rolled_back_and_settles_once_it_answers() {
+    let mut m = MockMonitor::gm950b();
+    m.faults.quiet_after_write.insert(0xF8, 10_000);
+    let mut c = ctl(m, WritePolicy::Experimental);
+    assert!(matches!(
+        c.write("adaptive-sync", 0),
+        Err(ControlError::Silent { .. })
+    ));
+    assert_eq!(
+        c.transport.writes.len(),
+        1,
+        "no corrective write while silent"
+    );
+    assert_eq!(c.journal().entries[0].state, EntryState::Pending);
+    // Still quiet: stays pending. Once it answers with the new value: applied.
+    assert!(matches!(
+        c.settle_silent("adaptive-sync", 0),
+        Err(ControlError::Silent { .. })
+    ));
+    c.transport.faults.quiet_after_write.clear();
+    c.transport.quiet.clear();
+    assert!(c.settle_silent("adaptive-sync", 0).is_ok());
+    assert_eq!(c.journal().entries[0].state, EntryState::Applied);
+}
+
+#[test]
+fn black_stabilizer_is_written_in_fifths_and_read_whole() {
+    // Measured on fw 3.05: write 10 reads 50, writes above 20 are refused.
+    let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Experimental);
+    let a = c.write("black-stabilizer", 80).unwrap();
+    assert_eq!(a.new, 80);
+    assert_eq!(c.transport.writes, vec![(0xF9, 16)]);
+    assert_eq!(c.read("black-stabilizer").unwrap().current, 80);
+    // A value between steps lands on the nearest one.
+    assert_eq!(c.write("black-stabilizer", 53).unwrap().new, 55);
+    // Putting back the original goes through the same scale.
+    c.revert(0).unwrap();
+    assert_eq!(c.read("black-stabilizer").unwrap().current, 50);
 }

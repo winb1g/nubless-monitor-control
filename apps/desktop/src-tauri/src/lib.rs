@@ -211,8 +211,30 @@ fn show_main(app: &AppHandle) {
     }
 }
 
-/// Place the popover next to the tray icon, inside the work area, above a
-/// bottom taskbar or below a top menu bar.
+/// Where the popover goes: centred on `anchor`, above it when the anchor is in the
+/// lower half of the work area (a bottom taskbar) and below it otherwise, and always
+/// inside the work area. All values are physical pixels; `area` is (x, y, w, h).
+fn popover_position(
+    anchor: (f64, f64),
+    (w, h): (f64, f64),
+    (ax, ay, aw, ah): (f64, f64, f64, f64),
+    gap: f64,
+) -> (f64, f64) {
+    let y = if anchor.1 > ay + ah / 2.0 {
+        ay + ah - h - gap
+    } else {
+        ay + gap
+    };
+    let x = (anchor.0 - w / 2.0).clamp(ax + gap, (ax + aw - w - gap).max(ax + gap));
+    (x, y)
+}
+
+/// Show or hide the popover next to the tray icon.
+///
+/// Windows can report the icon's rectangle outside every monitor (it did on a 5K
+/// screen with the icon in the overflow flyout), so a monitor is looked up by the
+/// icon first, then by the cursor, which is on the icon because it was just
+/// clicked, and last the primary monitor. The popover is never placed off-screen.
 fn toggle_popover(app: &AppHandle, rect: Rect) {
     let Some(win) = app.get_webview_window("tray") else {
         return;
@@ -224,22 +246,35 @@ fn toggle_popover(app: &AppHandle, rect: Rect) {
     let scale = win.scale_factor().unwrap_or(1.0);
     let pos = rect.position.to_physical::<f64>(scale);
     let size = rect.size.to_physical::<f64>(scale);
-    let (cx, cy) = (pos.x + size.width / 2.0, pos.y + size.height / 2.0);
+    let icon = (pos.x + size.width / 2.0, pos.y + size.height / 2.0);
+    let cursor = app.cursor_position().ok().map(|c| (c.x, c.y));
+    let found = [Some(icon), cursor].into_iter().flatten().find_map(|pt| {
+        let m = app.monitor_from_point(pt.0, pt.1).ok().flatten()?;
+        Some((pt, m))
+    });
+    let (anchor, monitor) = match found {
+        Some(f) => f,
+        None => match app.primary_monitor() {
+            Ok(Some(m)) => (
+                (m.position().x as f64 + m.size().width as f64 / 2.0, icon.1),
+                m,
+            ),
+            _ => return,
+        },
+    };
     let Ok(outer) = win.outer_size() else { return };
-    let (w, h) = (outer.width as f64, outer.height as f64);
-    let gap = 12.0 * scale;
-    let (mut x, mut y) = (cx - w / 2.0, pos.y + size.height + gap);
-    if let Ok(Some(m)) = app.monitor_from_point(cx, cy) {
-        let area = m.work_area();
-        let (ax, ay) = (area.position.x as f64, area.position.y as f64);
-        let (aw, ah) = (area.size.width as f64, area.size.height as f64);
-        y = if cy > ay + ah / 2.0 {
-            ay + ah - h - gap
-        } else {
-            ay + gap
-        };
-        x = x.clamp(ax + gap, ax + aw - w - gap);
-    }
+    let area = monitor.work_area();
+    let (x, y) = popover_position(
+        anchor,
+        (outer.width as f64, outer.height as f64),
+        (
+            area.position.x as f64,
+            area.position.y as f64,
+            area.size.width as f64,
+            area.size.height as f64,
+        ),
+        12.0 * scale,
+    );
     let _ = win.set_position(PhysicalPosition::new(x, y));
     let _ = win.show();
     let _ = win.set_focus();
@@ -371,4 +406,33 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running nubless");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::popover_position;
+
+    // The 5K screen from the bug report: work area starts below a 64 px bar.
+    const AREA: (f64, f64, f64, f64) = (0.0, 64.0, 5120.0, 2816.0);
+    const WIN: (f64, f64) = (680.0, 900.0);
+
+    #[test]
+    fn a_bottom_taskbar_icon_opens_the_popover_above_it() {
+        let (x, y) = popover_position((4540.0, 2800.0), WIN, AREA, 24.0);
+        assert_eq!((x, y), (4200.0, 2880.0 - 900.0 - 24.0));
+    }
+
+    #[test]
+    fn a_top_bar_icon_opens_it_below() {
+        let (_, y) = popover_position((4540.0, 20.0), WIN, AREA, 24.0);
+        assert_eq!(y, 64.0 + 24.0);
+    }
+
+    #[test]
+    fn it_stays_inside_the_work_area_at_the_edges() {
+        let (x, _) = popover_position((5100.0, 2800.0), WIN, AREA, 24.0);
+        assert_eq!(x, 5120.0 - 680.0 - 24.0);
+        let (x, _) = popover_position((10.0, 2800.0), WIN, AREA, 24.0);
+        assert_eq!(x, 24.0);
+    }
 }

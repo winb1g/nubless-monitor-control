@@ -121,6 +121,9 @@ body {
   user-select: none;
   overflow: hidden;
 }
+/* The tray window is transparent, so the popover's own rounded frame is its edge.
+   html paints the ground too and would show as square corners behind it. */
+html:has(body.tray),
 body.tray {
   background: transparent;
 }
@@ -284,6 +287,11 @@ button {
   height: 6px;
   background: repeating-linear-gradient(90deg, var(--ink) 0 4px, transparent 4px 8px) 0 0 / 8px 100%;
   animation: march var(--hatch) linear infinite;
+}
+/* A blocked stretch of a bar (BlockedZone): slanted ticks that do not move. Frozen,
+   where the busy bar marches; slanted, where the busy bar is upright. Same 4px rhythm. */
+.blocked {
+  background: repeating-linear-gradient(135deg, var(--ink) 0 4px, transparent 4px 8px);
 }
 @keyframes march {
   to {

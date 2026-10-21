@@ -30,7 +30,7 @@
       <div class="actions">
         <button class="btn" onclick={() => d.resolve(false)}>{d.cancel ?? "Cancel"}</button>
         <!-- svelte-ignore a11y_autofocus -->
-        <button class="btn primary" autofocus onclick={() => d.resolve(true)}>{d.confirm}</button>
+        <button class={d.tone === "signal" ? "btn signal" : "btn primary"} autofocus onclick={() => d.resolve(true)}>{d.confirm}</button>
       </div>
     </div>
   </div>

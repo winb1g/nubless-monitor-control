@@ -17,6 +17,9 @@
     <div class="toast" animate:flip={toastReflow} in:fly={toastIn} out:fly={toastOut}>
       {#if t.tone === "warn" || t.tone === "error"}<span class="label {t.tone}">{labels[t.tone]}</span>{/if}
       <span class="text">{t.text}</span>
+      {#if t.tone === "error" || t.tone === "warn"}
+        <button class="close" aria-label="Dismiss" onclick={() => dismiss(t.id)}>×</button>
+      {/if}
       {#if t.undo}
         <button
           class="undo"
@@ -82,6 +85,23 @@
   }
   .text {
     line-height: 1.35;
+    /* So an error can be selected and copied. */
+    user-select: text;
+    overflow-wrap: anywhere;
+  }
+  .close {
+    flex: none;
+    min-width: var(--hit);
+    min-height: var(--hit);
+    margin: -10px -14px -10px 0;
+    border: none;
+    background: none;
+    color: var(--toast-ink);
+    font-size: var(--fs-xl);
+    font-weight: 400;
+  }
+  .close:hover {
+    color: var(--toast-signal);
   }
   .undo {
     flex: none;
