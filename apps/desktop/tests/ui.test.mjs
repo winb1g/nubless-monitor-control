@@ -231,3 +231,21 @@ test("with no monitor found, the empty state offers the demo", async () => {
   await open({ query: "?preview=empty" });
   await page.getByRole("button", { name: /demo/i }).first().waitFor();
 });
+
+test("an error stays on screen until dismissed, and the app stays usable", async () => {
+  await open({ query: "?preview=fail-vrr" });
+  await labsOn();
+  await segment("Adaptive-Sync/VRR", "Off").click();
+  await page.clock.runFor(500);
+  const error = page.getByText(/did not apply 'adaptive-sync'/);
+  await error.waitFor();
+  // Long enough to read it, copy it, or take a screenshot.
+  await page.clock.runFor(30_000);
+  assert.ok(await error.isVisible(), "the error is still there after 30 s");
+  // Nothing else went dead.
+  assert.ok(await slider("brightness").isEnabled());
+  assert.ok(await segment("Response Time", "Fast").isEnabled());
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await page.clock.runFor(500);
+  await error.waitFor({ state: "hidden" });
+});

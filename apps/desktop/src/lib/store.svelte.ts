@@ -55,8 +55,10 @@ export function toast(text: string, tone: Toast["tone"] = "info", undo?: () => v
   const t = { id: ++toastId, text, tone, undo };
   // Untracked: a toast fired from an $effect must not make that effect depend
   // on the toast list, or each toast re-runs it and fires another.
-  ui.toasts = [...untrack(() => ui.toasts).slice(-2), t];
-  setTimeout(() => dismiss(t.id), undo ? 5000 : 3200);
+  ui.toasts = [...untrack(() => ui.toasts).slice(-3), t];
+  // An error stays until it is dismissed: it may be the only clue to what went
+  // wrong, and it has to outlast reading it, copying it, or taking a screenshot.
+  if (tone !== "error") setTimeout(() => dismiss(t.id), undo ? 5000 : tone === "warn" ? 9000 : 3200);
 }
 export function dismiss(id: number) {
   ui.toasts = ui.toasts.filter((t) => t.id !== id);

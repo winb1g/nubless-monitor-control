@@ -25,6 +25,9 @@ pub struct Faults {
     /// After every write to a code, its next N reads still show the old value
     /// while the new one has already been applied.
     pub stale_reads: BTreeMap<u8, u32>,
+    /// After every write to a code, its next N reads get no reply at all: the
+    /// monitor is busy resyncing the panel (turning VRR off does this for seconds).
+    pub quiet_after_write: BTreeMap<u8, u32>,
     /// The next N capabilities requests fail.
     pub caps_fail: u32,
     /// The next N capabilities requests return cut-off text.
@@ -45,6 +48,7 @@ pub struct MockMonitor {
     pub faults: Faults,
     /// Old readings still being served after a write (see [`Faults::stale_reads`]).
     stale: BTreeMap<u8, (u32, VcpReading)>,
+    quiet: BTreeMap<u8, u32>,
     reads: u32,
     pub writes: Vec<(u8, u16)>,
     /// LG AI channel state per sub-command (0xA6): 2 = AI Scene Optimization,
@@ -92,6 +96,7 @@ impl MockMonitor {
             flaky_every: 0,
             faults: Faults::default(),
             stale: BTreeMap::new(),
+            quiet: BTreeMap::new(),
             reads: 0,
             writes: Vec::new(),
             ai: BTreeMap::from([(2, 2), (4, 1), (6, 1)]),
@@ -118,6 +123,10 @@ impl Transport for MockMonitor {
             return Err(link_down());
         }
         if let Some(n) = self.faults.drop_reads.get_mut(&code).filter(|n| **n > 0) {
+            *n -= 1;
+            return Err(TransportError::NoReply(code));
+        }
+        if let Some(n) = self.quiet.get_mut(&code).filter(|n| **n > 0) {
             *n -= 1;
             return Err(TransportError::NoReply(code));
         }
@@ -148,6 +157,9 @@ impl Transport for MockMonitor {
         }
         if take(&mut self.faults.swallow_writes) {
             return Ok(());
+        }
+        if let Some(&n) = self.faults.quiet_after_write.get(&write.code()) {
+            self.quiet.insert(write.code(), n);
         }
         if let (Some(&n), Some(old)) = (
             self.faults.stale_reads.get(&write.code()),

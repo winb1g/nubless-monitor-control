@@ -8,7 +8,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use nubless_core::baseline;
-use nubless_core::controller::Snapshot;
+use nubless_core::controller::{ControlError, Snapshot};
 use nubless_core::journal::Journal;
 use nubless_core::mock::MockMonitor;
 use nubless_core::paths;
@@ -96,10 +96,32 @@ struct Conn {
 }
 
 impl Conn {
+    /// Re-read every control. A control the monitor doesn't answer keeps the value
+    /// it last had: after a write that resyncs the panel the monitor goes quiet for
+    /// a few seconds, and forgetting every value then would grey out the whole app.
+    /// Reading stops after a run of misses so a quiet monitor can't hold up the
+    /// thread (and every request queued behind it) for tens of seconds.
     fn refresh(&mut self) {
+        const MISSES_BEFORE_GIVING_UP: u32 = 4;
+        let mut misses = 0;
         for c in PROFILE.controls {
-            let v = self.ctl.read(c.id).ok().map(|r| r.current);
-            self.values.insert(c.id, v);
+            if misses >= MISSES_BEFORE_GIVING_UP {
+                break;
+            }
+            match self.ctl.read(c.id) {
+                Ok(r) => {
+                    misses = 0;
+                    self.values.insert(c.id, Some(r.current));
+                }
+                // Not readable by policy (needs Labs): genuinely unknown.
+                Err(ControlError::Safety(_)) => {
+                    self.values.insert(c.id, None);
+                }
+                Err(_) => {
+                    misses += 1;
+                    self.values.entry(c.id).or_insert(None);
+                }
+            }
         }
     }
 
@@ -447,8 +469,9 @@ impl Worker {
             Ok(a) => a,
             Err(e) => {
                 // The write was refused or rolled back: show what the monitor really has.
-                let v = conn.ctl.read(control.id).ok().map(|r| r.current);
-                conn.values.insert(control.id, v);
+                if let Ok(r) = conn.ctl.read(control.id) {
+                    conn.values.insert(control.id, Some(r.current));
+                }
                 return Err(e.to_string());
             }
         };
@@ -472,8 +495,9 @@ impl Worker {
             mode: None,
         };
         let results = conn.ctl.restore(&snapshot);
-        let v = conn.ctl.read(control.id).ok().map(|r| r.current);
-        conn.values.insert(control.id, v);
+        if let Ok(r) = conn.ctl.read(control.id) {
+            conn.values.insert(control.id, Some(r.current));
+        }
         if let Some((_, Err(e))) = results.into_iter().next() {
             return Err(format!("{} couldn't be put back: {e}", control.label));
         }
@@ -860,6 +884,102 @@ mod tests {
         let out = w.set("brightness", 42).unwrap();
         assert!(out.undoable);
         assert_eq!(value(&mut w, "brightness"), Some(42));
+    }
+
+    /// A simulated monitor the test can keep poking after the worker owns it.
+    #[derive(Clone)]
+    struct Shared(
+        std::sync::Arc<std::sync::Mutex<MockMonitor>>,
+        std::sync::Arc<std::sync::atomic::AtomicU32>,
+    );
+    impl Transport for Shared {
+        fn capabilities(&mut self) -> Result<String, nubless_core::transport::TransportError> {
+            self.0.lock().unwrap().capabilities()
+        }
+        fn get_vcp(
+            &mut self,
+            code: u8,
+        ) -> Result<nubless_core::transport::VcpReading, nubless_core::transport::TransportError>
+        {
+            self.1.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.0.lock().unwrap().get_vcp(code)
+        }
+        fn set_vcp(
+            &mut self,
+            w: &nubless_core::safety::ValidatedWrite,
+        ) -> Result<(), nubless_core::transport::TransportError> {
+            self.0.lock().unwrap().set_vcp(w)
+        }
+    }
+
+    fn worker_on(shared: Shared, name: &str) -> Worker {
+        let mut w = demo_worker(name);
+        let ctl = Controller::new(
+            Box::new(shared) as Box<dyn Transport>,
+            &PROFILE,
+            WritePolicy::Experimental,
+            Timing::instant(),
+            Journal::in_memory(),
+        )
+        .unwrap();
+        let c = w.conn.as_mut().unwrap();
+        c.demo = false;
+        c.ctl = ctl;
+        w.labs = true;
+        w.conn.as_mut().unwrap().refresh();
+        w
+    }
+
+    fn shared() -> Shared {
+        Shared(Default::default(), Default::default())
+    }
+
+    #[test]
+    fn a_quiet_monitor_does_not_grey_out_the_app() {
+        let s = shared();
+        let mut w = worker_on(s.clone(), "quiet");
+        assert_eq!(value(&mut w, "brightness"), Some(80));
+        // The panel is resyncing: nothing answers for a while.
+        s.0.lock().unwrap().faults.offline = true;
+        w.conn.as_mut().unwrap().refresh();
+        let state = w.state();
+        assert_eq!(value(&mut w, "brightness"), Some(80), "known values stay");
+        assert!(
+            state
+                .controls
+                .iter()
+                .filter(|c| c.value.is_some())
+                .all(|c| c.enabled || c.reason.is_some()),
+            "nothing is disabled just because the monitor was quiet"
+        );
+        let brightness = state
+            .controls
+            .iter()
+            .find(|c| c.id == "brightness")
+            .unwrap();
+        assert!(brightness.enabled);
+        // And when it answers again, values update.
+        {
+            let mut m = s.0.lock().unwrap();
+            m.faults.offline = false;
+            m.values.get_mut(&0x10).unwrap().current = 33;
+        }
+        w.conn.as_mut().unwrap().refresh();
+        assert_eq!(value(&mut w, "brightness"), Some(33));
+    }
+
+    #[test]
+    fn a_quiet_monitor_does_not_hold_up_the_thread() {
+        let s = shared();
+        let mut w = worker_on(s.clone(), "quiet-fast");
+        s.0.lock().unwrap().faults.offline = true;
+        s.1.store(0, std::sync::atomic::Ordering::SeqCst);
+        w.conn.as_mut().unwrap().refresh();
+        let reads = s.1.load(std::sync::atomic::Ordering::SeqCst);
+        assert!(
+            reads <= 4 * 3,
+            "gave up after a few controls, not all of them: {reads} reads"
+        );
     }
 
     #[test]

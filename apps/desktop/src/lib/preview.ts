@@ -60,6 +60,8 @@ const HOTKEY_LABELS: Record<HotkeyAction, [string, string]> = {
   "next-picture-mode": ["Next picture mode", "Ctrl+Alt+End"],
 };
 
+const FAIL_VRR = typeof location !== "undefined" && new URLSearchParams(location.search).get("preview") === "fail-vrr";
+
 export function previewBackend() {
   let autostart = false;
   let hotkeys = {
@@ -123,6 +125,8 @@ export function previewBackend() {
     async setLabs(on: boolean) { labs = on; emit(); return state(); },
     async setControl(id: string, value: number): Promise<Outcome> {
       await wait(120);
+      // `?preview=fail-vrr` makes turning Adaptive-Sync off fail the way a monitor that went quiet does.
+      if (FAIL_VRR && id === "adaptive-sync") throw "the monitor did not apply 'adaptive-sync' = 0 (it did not answer); the previous value was restored. Another setting may be locking it (for example a picture mode or AI Scene Optimization).";
       const label = controls(labs, values).find((x) => x.id === id)?.label ?? "Setting";
       if (values[id] === value) return { state: state(), toast: null, undoable: false };
       history.push([id, values[id]]);

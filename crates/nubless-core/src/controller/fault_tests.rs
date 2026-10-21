@@ -105,6 +105,44 @@ fn a_lagging_read_back_does_not_undo_a_change_that_landed() {
 }
 
 #[test]
+fn a_monitor_that_goes_quiet_while_the_panel_resyncs_is_waited_for() {
+    // Turning VRR off blanks the panel; the monitor answers nothing for seconds.
+    let mut m = MockMonitor::gm950b();
+    m.faults.quiet_after_write.insert(0xF8, 12);
+    let mut c = ctl(m, WritePolicy::Experimental);
+    let a = c.write("adaptive-sync", 0).unwrap();
+    assert!(a.needs_confirmation);
+    assert_eq!(c.read("adaptive-sync").unwrap().current, 0);
+    assert_eq!(c.journal().entries[0].state, EntryState::Applied);
+    assert_eq!(
+        c.transport.writes.len(),
+        1,
+        "no corrective write while it was busy"
+    );
+}
+
+#[test]
+fn a_monitor_that_never_comes_back_is_reported_in_plain_words() {
+    let mut m = MockMonitor::gm950b();
+    m.faults.quiet_after_write.insert(0xF8, 10_000);
+    let mut c = ctl(m, WritePolicy::Experimental);
+    let err = c.write("adaptive-sync", 0).unwrap_err();
+    let text = err.to_string();
+    assert!(text.contains("did not answer"), "{text}");
+    assert!(!text.contains("None"), "{text}");
+}
+
+#[test]
+fn a_refusal_is_not_mistaken_for_a_busy_monitor() {
+    // The monitor answers with the old value: it said no. Do not wait it out.
+    let mut m = MockMonitor::gm950b();
+    m.ignore_writes_to.push(0xF8);
+    let mut c = ctl(m, WritePolicy::Experimental);
+    let err = c.write("adaptive-sync", 0).unwrap_err();
+    assert!(err.to_string().contains("it reads 3"), "{err}");
+}
+
+#[test]
 fn all_zero_replies_are_not_values() {
     // Some LG firmware answers codes it does not implement with 0 / 0. Writing
     // "the old value" back to that would be inventing a value.

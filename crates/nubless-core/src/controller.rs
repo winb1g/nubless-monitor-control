@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::caps::{Capabilities, CapsError};
 use crate::journal::{EntryState, Journal};
-use crate::profile::{Confidence, Control, Profile, ValueKind, WritePolicy};
+use crate::profile::{Confidence, Control, Profile, Risk, ValueKind, WritePolicy};
 use crate::safety::{self, SafetyError};
 use crate::transport::{Transport, TransportError, VcpReading};
 
@@ -23,6 +23,13 @@ pub struct Timing {
     /// Attempts per read before the value counts as unknown.
     pub read_attempts: u32,
     pub retry_delay: Duration,
+    /// After a write that makes the panel resync (VRR, response time) the monitor
+    /// can stop answering DDC/CI for a few seconds. When the read-back gets no
+    /// answer at all, ask again up to this many times, `resync_gap` apart, before
+    /// calling the write failed. An answer that shows the old value is a refusal
+    /// and is not waited out.
+    pub resync_polls: u32,
+    pub resync_gap: Duration,
 }
 
 impl Timing {
@@ -31,6 +38,8 @@ impl Timing {
         settle: Duration::from_millis(150),
         read_attempts: 3,
         retry_delay: Duration::from_millis(80),
+        resync_polls: 10,
+        resync_gap: Duration::from_millis(500),
     };
 
     pub const fn instant() -> Timing {
@@ -39,6 +48,8 @@ impl Timing {
             settle: Duration::ZERO,
             read_attempts: 3,
             retry_delay: Duration::ZERO,
+            resync_polls: 10,
+            resync_gap: Duration::ZERO,
         }
     }
 }
@@ -55,7 +66,7 @@ pub enum ControlError {
     Caps(#[from] CapsError),
     #[error("could not read the current value of '{0}', so the change could not be undone; nothing was written")]
     CannotReadCurrent(&'static str),
-    #[error("the monitor did not apply '{id}' = {wanted} (it reads {got:?}); {outcome}. Another setting may be locking it (for example a picture mode or AI Scene Optimization).")]
+    #[error("the monitor did not apply '{id}' = {wanted} ({}); {outcome}. Another setting may be locking it (for example a picture mode or AI Scene Optimization).", describe_reading(.got))]
     NotApplied {
         id: &'static str,
         wanted: u16,
@@ -66,6 +77,14 @@ pub enum ControlError {
     NothingToUndo,
     #[error("these settings belong to {saved}. Switch your monitor to {saved} first (it's on {current} now), then try again.")]
     WrongMode { saved: String, current: String },
+}
+
+/// What the monitor said when asked for the value after a write.
+fn describe_reading(got: &Option<u16>) -> String {
+    match got {
+        Some(v) => format!("it reads {v}"),
+        None => "it did not answer".to_string(),
+    }
 }
 
 /// Result of a successful write.
@@ -403,6 +422,17 @@ impl<T: Transport> Controller<T> {
         if sent.is_ok() && back != Some(expected) {
             self.settle();
             back = self.verify_read(control);
+        }
+        // No answer at all after a write that resyncs the panel: the monitor is
+        // busy switching, not refusing. Give it time before concluding anything.
+        if sent.is_ok() && back.is_none() && control.risk == Risk::Resync {
+            for _ in 0..self.timing.resync_polls {
+                sleep(self.timing.resync_gap);
+                back = self.verify_read(control);
+                if back.is_some() {
+                    break;
+                }
+            }
         }
         if sent.is_ok() && back == Some(expected) {
             self.journal.set_state(index, EntryState::Applied);
