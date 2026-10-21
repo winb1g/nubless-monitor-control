@@ -247,6 +247,19 @@ test("every page opens without errors", async () => {
   }
 });
 
+test("a slider's handle sits at its value on the monitor's own scale, even with a floor", async () => {
+  await open();
+  // Contrast's safe range starts at 20, but 70 is still 70% along the bar.
+  const where = await page.evaluate(() => {
+    const bar = document.querySelector("input#slider-contrast").parentElement.querySelector(".bar");
+    const fill = bar.querySelector("i").getBoundingClientRect();
+    const box = bar.getBoundingClientRect();
+    return (fill.right - box.left) / box.width;
+  });
+  assert.ok(Math.abs(where - 0.7) < 0.03, `handle at ${where}`);
+  assert.equal(await slider("contrast").inputValue(), "70");
+});
+
 test("with no monitor found, the empty state offers the demo", async () => {
   await open({ query: "?preview=empty" });
   await page.getByRole("button", { name: /demo/i }).first().waitFor();

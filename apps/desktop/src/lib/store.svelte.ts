@@ -16,7 +16,7 @@ export interface Dialog {
   body: string;
   confirm: string;
   cancel?: string;
-  tone?: "accent" | "danger";
+  tone?: "accent" | "danger" | "signal";
   resolve: (ok: boolean) => void;
 }
 
@@ -115,6 +115,7 @@ export async function setControl(id: string, value: number, opts: { quiet?: bool
       title: "Switch Adaptive-Sync?",
       body: "Your screen will go black for a few seconds while the monitor reconnects, and nubless can't talk to it until it's back. Nothing is wrong when that happens. Save your work if a game or video is running.",
       confirm: "Switch",
+      tone: "signal",
       cancel: "Not now",
     });
     if (!ok) return;

@@ -6,6 +6,7 @@
   import { setControl } from "../store.svelte";
   import { ms } from "../motion";
   import type { ControlView } from "../types";
+  import BlockedZone from "./BlockedZone.svelte";
   import Lock from "./Lock.svelte";
 
   let { control, compact = false, fine = false }: { control: ControlView; compact?: boolean; fine?: boolean } = $props();
@@ -21,7 +22,13 @@
 
   const id = $derived(`slider-${control.id}`);
   const value = $derived(local ?? control.value ?? control.min);
-  const pct = $derived(((value - control.min) / Math.max(1, control.max - control.min)) * 100);
+  // A safe range that starts above 0 (Contrast: 20) is drawn on the monitor's own
+  // 0-to-max scale, so the handle sits where the monitor's menu puts it. The part
+  // below the floor is hatched and can't be dragged into.
+  const base = $derived(control.min > 0 ? 0 : control.min);
+  const span = $derived(Math.max(1, control.max - base));
+  const pct = $derived(((value - base) / span) * 100);
+  const floorPct = $derived(((control.min - base) / span) * 100);
 
   // Drags are throttled to the monitor's pace; the last value always goes out.
   function send(v: number, final: boolean) {
@@ -36,15 +43,23 @@
     }
   }
 
+  // The input spans the whole scale; anything under the floor snaps back to it.
+  function pinned(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const v = Math.max(control.min, Number(input.value));
+    input.value = String(v);
+    return v;
+  }
+
   function oninput(e: Event) {
     gestureStart ??= control.value;
-    const v = Number((e.target as HTMLInputElement).value);
+    const v = pinned(e);
     local = v;
     send(v, false);
   }
 
   function onchange(e: Event) {
-    const v = Number((e.target as HTMLInputElement).value);
+    const v = pinned(e);
     dragging = false;
     send(v, true);
     clearTimeout(settle);
@@ -96,11 +111,12 @@
       </button>
     {/if}
     <div class="track">
-      <div class="bar" aria-hidden="true"><i style:width="{pct}%"></i></div>
+      <div class="bar" aria-hidden="true">{#if floorPct > 0}<BlockedZone pct={floorPct} {compact} />{/if}<i style:margin-left="{floorPct}%" style:width="{pct - floorPct}%"></i></div>
       <input
         {id}
         type="range"
-        min={control.min}
+        aria-describedby={floorPct > 0 ? `${id}-floor` : undefined}
+        min={base}
         max={control.max}
         step="1"
         value={value}
@@ -109,6 +125,7 @@
         {oninput}
         {onchange}
       />
+      {#if floorPct > 0}<span id="{id}-floor" class="note">Below {control.min} is blocked so the picture can't become unreadable.</span>{/if}
     </div>
     {#if fine && control.enabled}
       <button class="fine end" aria-label="Increase {control.label}" onpointerdown={() => hold(1)} onpointerup={release} onpointerleave={release} onclick={keyStep(1)}>
@@ -163,6 +180,18 @@
   .bar {
     height: 16px;
     border: 2px solid var(--ink);
+  }
+  .bar {
+    position: relative;
+  }
+  /* Read by screen readers only. */
+  .note {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .bar i {
     display: block;
