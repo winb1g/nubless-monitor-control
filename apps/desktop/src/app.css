@@ -121,6 +121,9 @@ body {
   user-select: none;
   overflow: hidden;
 }
+/* The tray window is transparent, so the popover's own rounded frame is its edge.
+   html paints the ground too and would show as square corners behind it. */
+html:has(body.tray),
 body.tray {
   background: transparent;
 }
