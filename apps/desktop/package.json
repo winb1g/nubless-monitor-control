@@ -1,6 +1,6 @@
 {
   "name": "nubless-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "nubless desktop UI",
   "scripts": {
     "dev": "vite",

@@ -2598,7 +2598,7 @@ dependencies = [
 
 [[package]]
 name = "nubless-app"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "nubless-core",
  "nubless-hw",
@@ -2616,7 +2616,7 @@ dependencies = [
 
 [[package]]
 name = "nubless-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "clap",
  "nubless-core",
@@ -2626,7 +2626,7 @@ dependencies = [
 
 [[package]]
 name = "nubless-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2635,7 +2635,7 @@ dependencies = [
 
 [[package]]
 name = "nubless-hw"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ddc-hi",
  "nubless-core",
