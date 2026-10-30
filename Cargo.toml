@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/nubless-core", "crates/nubless-hw", "crates/nubless-cli", "apps/desktop/src-tauri"]
 
 [workspace.package]
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/winb1g/nubless-monitor-control"
