@@ -166,23 +166,23 @@ pub const CONTROLS: &[Control] = &[
     },
     Control {
         id: "contrast", label: "Contrast", vcp: 0x12, kind: range(20, 100),
-        confidence: ReadConfirmed, standard: true, writable: true, risk: Risk::Visibility,
-        note: "Standard MCCS contrast. Read-back 70 matched LG Switch. Safe range starts at 20 so the picture can never be dimmed into unreadability; lower original values are still restored.",
+        confidence: WriteConfirmed, standard: true, writable: true, risk: Risk::Visibility,
+        note: "Standard MCCS contrast. Read-back 70 matched LG Switch. Writes, Keep, Revert and the 5 s timeout agreed with the OSD (fw 3.05, 2026-10-30). Safe range starts at 20 so the picture can never be dimmed into unreadability; lower original values are still restored.",
     },
     Control {
         id: "black-stabilizer", label: "Black Stabilizer", vcp: 0xF9, kind: range(0, 100),
-        confidence: Strong, standard: false, writable: true, risk: Risk::Visibility,
-        note: "LG MANUFACTURER_BLACK_STABILIZER. Read-back 50 matched. Monitor reports max 255; the OSD slider is 0-100 (checked by hand 2026-10-20), so the UI range is 0-100; the 1:1 write is not confirmed yet.",
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::Visibility,
+        note: "LG MANUFACTURER_BLACK_STABILIZER. Read-back 50 matched. Monitor reports max 255; the OSD slider is 0-100 (checked by hand 2026-10-20), so the UI range is 0-100. Writes agreed with the OSD, with one prompt per drag (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "response-time", label: "Response Time", vcp: 0xF7, kind: ValueKind::Choice { choices: RESPONSE_TIME },
-        confidence: Strong, standard: false, writable: true, risk: Risk::Resync,
-        note: "LG enum OFF=0, HIGH=1, MIDDLE=2, LOW=3; the capabilities string declares F7(00 01 02 03) and the OSD offers Off, Normal, Fast, Faster. Reads 2 while UI shows Fast. Label order (and Off = 0) inferred, not yet written.",
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::Resync,
+        note: "LG enum OFF=0, HIGH=1, MIDDLE=2, LOW=3; the capabilities string declares F7(00 01 02 03) and the OSD offers Off, Normal, Fast, Faster. Reads 2 while UI shows Fast. Every option written from the app and agreed with the OSD, including Keep, Revert and the 5 s timeout (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "adaptive-sync", label: "Adaptive-Sync/VRR", vcp: 0xF8, kind: ValueKind::Choice { choices: ADAPTIVE_SYNC },
-        confidence: Strong, standard: false, writable: true, risk: Risk::Resync,
-        note: "LG enum OFF=0, ON=1, BASIC=2, EXTENDED=3; reads 3 = Extended. Capabilities only declare 00 01, so declared sub-values are not trusted for this code.",
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::Resync,
+        note: "LG enum OFF=0, ON=1, BASIC=2, EXTENDED=3; reads 3 = Extended. Capabilities only declare 00 01, so declared sub-values are not trusted for this code. Off = 0, Basic = 2 and Extended = 3 each read back with the OSD showing the same option, and writes agreed with the OSD (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "picture-mode", label: "Picture Mode", vcp: 0x15, kind: ValueKind::Choice { choices: PICTURE_MODES },
@@ -192,12 +192,12 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "color-temperature", label: "Color temperature", vcp: 0x69, kind: ValueKind::Info,
         confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "LG COLOR_TEMP_VALUE reads 6500; list 0x6A = Warm, Medium, Cool, Custom, Manual. Encoding of the Manual slider unknown.",
+        note: "Read-only. Preset selector is 0x14: Warm 3, Medium 5, Cool 9, Custom 11, Manual 65502 (0xFFDE), each read with the OSD on that option (fw 3.05, 2026-10-30). In Manual, 0x69 is the slider in kelvin: W8 4000, 0 6500, C1 6800, C10 10000 (uneven steps; the other notches are not mapped). In the presets 0x69 reports the preset (Warm 6500, Medium 7500, Cool 9300). Writes untested.",
     },
     Control {
         id: "red-gain", label: "Red", vcp: 0x16, kind: range(0, 100),
         confidence: Candidate, standard: true, writable: false, risk: Risk::Visibility,
-        note: "Standard video gain; likely the Custom color sliders. Not matched to the UI yet.",
+        note: "Standard video gain. Choosing Custom unlocks the three sliders, which all read 50 here and in 0x16/0x18/0x1A (fw 3.05, 2026-10-30). Moving one slider to see which code follows is still to do.",
     },
     Control {
         id: "green-gain", label: "Green", vcp: 0x18, kind: range(0, 100),
@@ -217,7 +217,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "motion-blur", label: "Motion Blur Reduction", vcp: 0xFA, kind: ValueKind::Info,
         confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "LG MOTION_BLUR reads 2 (the capabilities string declares FA(00 01)); scale unknown. Only available while Adaptive-Sync is Off: it is unavailable in Basic and Extended (seen on the monitor 2026-10-21, docs/rules.md), so 2 may mean unavailable.",
+        note: "Read-only. Reads 1 with Motion Blur Reduction On and 2 with it Off or hidden (Adaptive-Sync Basic/Extended clears it), so 0xFA cannot tell Off from unavailable; 0xF4 reads 7 while Adaptive-Sync is Off and 6 otherwise (probable availability flag). Which value writes Off (0 or 2) is untested. Only available while Adaptive-Sync is Off (docs/rules.md). Read with the OSD (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "hdr", label: "HDR", vcp: 0xE2, kind: ValueKind::Info,
@@ -234,8 +234,8 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "ai-upscaling", label: "AI Upscaling", vcp: 0xA6,
         kind: ValueKind::SubCommand { sub: 4, choices: UPSCALING },
-        confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Sub-command 4 (eSoC_AIMODE_UPSCALLING): LG names 1 = Low, 2 = Middle, 4 = High; the OSD offers Off, Low, High and a real unit answered 1 while LG Switch showed Off, so we read 1 = Off, 2 = Low, 4 = High (inferred, not written). Unavailable while PBP/PIP is on.",
+        confidence: ReadConfirmed, standard: false, writable: false, risk: Risk::Visibility,
+        note: "Sub-command 4 (eSoC_AIMODE_UPSCALLING). Read matched the OSD on all three options: Off 1, Low 2, High 4 (fw 3.05, 2026-10-30). Not written yet. Unavailable while PBP/PIP is on.",
     },
     Control {
         id: "ai-sound", label: "AI Sound", vcp: 0xA6,
@@ -246,13 +246,13 @@ pub const CONTROLS: &[Control] = &[
     // ---- Sound / input ----------------------------------------------------
     Control {
         id: "volume", label: "Volume", vcp: 0x62, kind: range(0, 100),
-        confidence: Strong, standard: true, writable: true, risk: Risk::None,
-        note: "Standard speaker volume; reads 20. Not compared with the OSD yet.",
+        confidence: WriteConfirmed, standard: true, writable: true, risk: Risk::None,
+        note: "Standard speaker volume; reads 20. Writes agreed with the OSD (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "mute", label: "Mute", vcp: 0x8D, kind: ValueKind::Choice { choices: MUTE },
-        confidence: Strong, standard: true, writable: true, risk: Risk::None,
-        note: "Standard audio mute, 1 muted / 2 unmuted; reads 2.",
+        confidence: WriteConfirmed, standard: true, writable: true, risk: Risk::None,
+        note: "Standard audio mute, 1 muted / 2 unmuted; reads 2. Muting and unmuting stopped and restarted the sound and agreed with the OSD (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "input", label: "Input", vcp: 0x60, kind: ValueKind::Choice { choices: INPUTS },
@@ -393,10 +393,10 @@ mod evidence_tests {
 
     const PINNED: &[(&str, Confidence)] = &[
         ("brightness", ReadConfirmed),
-        ("contrast", ReadConfirmed),
-        ("black-stabilizer", Strong),
-        ("response-time", Strong),
-        ("adaptive-sync", Strong),
+        ("contrast", WriteConfirmed),
+        ("black-stabilizer", WriteConfirmed),
+        ("response-time", WriteConfirmed),
+        ("adaptive-sync", WriteConfirmed),
         ("picture-mode", WriteConfirmed),
         ("color-temperature", Candidate),
         ("red-gain", Candidate),
@@ -406,10 +406,10 @@ mod evidence_tests {
         ("motion-blur", Candidate),
         ("hdr", Candidate),
         ("ai-scene-optimization", WriteConfirmed),
-        ("ai-upscaling", Candidate),
+        ("ai-upscaling", ReadConfirmed),
         ("ai-sound", WriteConfirmed),
-        ("volume", Strong),
-        ("mute", Strong),
+        ("volume", WriteConfirmed),
+        ("mute", WriteConfirmed),
         ("input", Candidate),
         ("firmware", ReadConfirmed),
         ("usage-hours", Candidate),
@@ -497,17 +497,10 @@ mod evidence_tests {
             .map(|c| c.id)
             .collect();
         labs.sort_unstable();
-        // README.md, "What works today". Keep the two in step.
-        assert_eq!(
-            labs,
-            [
-                "adaptive-sync",
-                "black-stabilizer",
-                "mute",
-                "response-time",
-                "volume"
-            ]
-        );
+        // README.md, "What works today". Keep the two in step. Every control that
+        // was in Labs passed its hardware card on 2026-10-30; the next candidate to
+        // become writable goes here until its card passes.
+        assert!(labs.is_empty(), "controls in Labs: {labs:?}");
     }
 
     #[test]

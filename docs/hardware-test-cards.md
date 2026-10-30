@@ -1,5 +1,7 @@
 # Hardware test cards: Labs controls
 
+> **Status, 2026-10-30:** every card below passed on firmware 3.05 and the controls left Labs. The cards stay as the procedure for the next control to enter Labs, and the branch URL in step 2 is out of date: run from `main`.
+
 One card per control that is still behind Labs. Everything below is done **in the app**, with the monitor's own on-screen menu (OSD) open next to it as the judge. A passing card is what lets a control leave Labs; see [Promoting a control](#promoting-a-control).
 
 The mock monitor, the fault tests and the browser tests already prove the *software* does the right thing with any answer the monitor gives. These cards only answer what software can't: **does this raw value mean what we think, and does the panel take it?**

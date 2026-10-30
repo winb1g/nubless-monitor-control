@@ -236,7 +236,12 @@ mod tests {
 
     #[test]
     fn strong_controls_need_experimental() {
-        let c = PROFILE.control("adaptive-sync").unwrap();
+        // Nothing in the profile is Strong any more, so the gate is checked on a
+        // Strong copy of a control.
+        let c: &'static Control = Box::leak(Box::new(Control {
+            confidence: Confidence::Strong,
+            ..*PROFILE.control("adaptive-sync").unwrap()
+        }));
         assert!(matches!(
             check_write(c, 3, &caps(), WritePolicy::Safe),
             Err(SafetyError::NotConfident { .. })

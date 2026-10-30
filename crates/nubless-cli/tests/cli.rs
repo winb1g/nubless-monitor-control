@@ -115,30 +115,29 @@ fn values_outside_the_safe_range_are_refused() {
 }
 
 #[test]
-fn labs_controls_need_labs() {
-    let r = mock(&["set", "response-time", "faster"]);
-    assert!(!r.ok);
-    assert!(r.err.contains("--experimental"), "{}", r.err);
-    assert!(
-        !r.out.contains("->"),
-        "nothing may have been written: {}",
-        r.out
-    );
-    // With Labs on, the label works as well as the number.
+fn hardware_confirmed_controls_need_no_labs() {
+    // Response Time passed its hardware card (fw 3.05, 2026-10-30): the label works
+    // as well as the number, without --experimental.
     assert!(
         nubless(
-            &[
-                "--mock",
-                "--experimental",
-                "set",
-                "response-time",
-                "Faster",
-                "--yes"
-            ],
+            &["--mock", "set", "response-time", "Faster", "--yes"],
             Stdin::Closed
         )
         .ok
     );
+    // AI Upscaling is only read-confirmed: refused with or without Labs.
+    for args in [
+        &["--mock", "set", "ai-upscaling", "low"][..],
+        &["--mock", "--experimental", "set", "ai-upscaling", "low"][..],
+    ] {
+        let r = nubless(args, Stdin::Closed);
+        assert!(!r.ok, "{args:?}");
+        assert!(
+            !r.out.contains("->"),
+            "nothing may have been written: {}",
+            r.out
+        );
+    }
 }
 
 #[test]
@@ -218,6 +217,7 @@ fn the_default_wait_is_five_seconds() {
 
 #[test]
 fn controls_explains_what_is_locked_without_labs() {
+    // Nothing is in Labs now; AI Upscaling is the read-only example.
     let safe = mock(&["controls"]);
     let labs = labs(&["controls"]);
     assert!(safe.ok && labs.ok);
@@ -229,14 +229,19 @@ fn controls_explains_what_is_locked_without_labs() {
             .to_string()
     };
     assert!(
-        row(&safe.out, "response-time").contains("read-only"),
+        row(&safe.out, "ai-upscaling").contains("read-only"),
         "{}",
         safe.out
     );
     assert!(
-        row(&labs.out, "response-time").contains("writable"),
+        row(&labs.out, "ai-upscaling").contains("read-only"),
         "{}",
         labs.out
+    );
+    assert!(
+        row(&safe.out, "response-time").contains("writable"),
+        "{}",
+        safe.out
     );
     assert!(row(&safe.out, "brightness").contains("writable"));
 }
