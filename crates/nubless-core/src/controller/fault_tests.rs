@@ -30,14 +30,6 @@ fn other_value(c: &Control, current: u16) -> u16 {
     }
 }
 
-/// Controls writable under Labs but not by default.
-fn labs_only() -> impl Iterator<Item = &'static Control> {
-    PROFILE
-        .controls
-        .iter()
-        .filter(|c| WritePolicy::Experimental.allows(c) && !WritePolicy::Safe.allows(c))
-}
-
 // ---- dropped, lost and lagging traffic ---------------------------------------
 
 #[test]
@@ -330,17 +322,19 @@ fn an_undo_the_monitor_refuses_is_reported_and_stays_undoable() {
 }
 
 #[test]
-fn labs_controls_send_nothing_without_labs() {
-    let labs: Vec<_> = labs_only().collect();
-    assert!(!labs.is_empty());
-    for control in labs {
+fn unconfirmed_controls_send_nothing() {
+    // Nothing is in Labs now; the controls that are not writable must stay silent.
+    let silent: Vec<_> = PROFILE
+        .controls
+        .iter()
+        .filter(|c| !WritePolicy::Experimental.allows(c) && !matches!(c.kind, ValueKind::Info))
+        .collect();
+    assert!(!silent.is_empty());
+    for control in silent {
         let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Safe);
         let target = other_value(control, 0);
         assert!(
-            matches!(
-                c.write(control.id, target),
-                Err(ControlError::Safety(SafetyError::NotConfident { .. }))
-            ),
+            matches!(c.write(control.id, target), Err(ControlError::Safety(_))),
             "{}",
             control.id
         );

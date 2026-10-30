@@ -106,9 +106,9 @@ nubless --experimental set adaptive-sync basic   # asks "Keep this change?", rev
 
 | | Controls |
 |---|---|
-| ✅ **Read and write** | Brightness and contrast (within safe ranges), all 8 picture modes, AI Scene Optimization, AI Sound |
-| 🧪 **Write behind `--experimental` / Labs** | Black Stabilizer, Response Time, Adaptive-Sync/VRR, volume, mute |
-| 👁 **Read-only** | Color temperature, RGB gains, aspect ratio, motion blur, AI Upscaling, firmware level, usage hours, Dual-Mode state |
+| ✅ **Read and write** | Brightness and contrast (within safe ranges), Black Stabilizer, Response Time, Adaptive-Sync/VRR, volume, mute, all 8 picture modes, AI Scene Optimization, AI Sound |
+| 🧪 **Write behind `--experimental` / Labs** | none right now: the next control to become writable goes here until its hardware card passes |
+| 👁 **Read-only** | Color temperature (presets and the Manual slider are decoded), RGB gains, aspect ratio, motion blur (decoded), AI Upscaling (decoded), firmware level, usage hours, Dual-Mode state |
 | ⛔ **Blocked on purpose** | Input switching (it can cut the DDC link), and everything on the deny-list |
 
 <details>
@@ -117,11 +117,11 @@ nubless --experimental set adaptive-sync basic   # asks "Keep this change?", rev
 | Control | Code | Status |
 |---|---|---|
 | Brightness, Contrast | `0x10`, `0x12` | read ✔ · write: safe policy (standard MCCS) |
-| Black Stabilizer, Response Time, Adaptive-Sync/VRR | `0xF9`, `0xF7`, `0xF8` | read ✔ · write: `--experimental` until round-trip confirmed |
-| Volume, Mute | `0x62`, `0x8D` | read ✔ · write: `--experimental` |
+| Black Stabilizer, Response Time, Adaptive-Sync/VRR | `0xF9`, `0xF7`, `0xF8` | read ✔ · write ✔ (OSD-verified, fw 3.05, 2026-10-30), with the Keep/Revert prompt |
+| Volume, Mute | `0x62`, `0x8D` | read ✔ · write ✔ (OSD-verified, fw 3.05, 2026-10-30) |
 | Picture mode (all 8 modes) | `0x15` | read ✔ · write ✔ (OSD-verified), through the AI interlock |
 | AI Scene Optimization, AI Sound | `0xA6` sub-commands 2, 6 | read ✔ · write ✔ (OSD-verified) |
-| Color temperature, RGB gains, aspect ratio, motion blur, AI Upscaling | various | read ✔ · not writable yet (encoding unconfirmed) |
+| Color temperature (`0x14` presets, `0x69` Manual), RGB gains, aspect ratio, motion blur (`0xFA`), AI Upscaling (`0xA6` sub 4) | various | read ✔ · not writable yet (writes untested) |
 | Input | `0x60` | read ✔ · **blocked**: switching input can cut the DDC link (dead end) |
 | Firmware level, usage hours, Dual-Mode state | `0xC9`, `0xC0`, `0xB1` | read-only |
 | Interlocks (AI features, PBP/PIP, picture modes that block AI) | — | done, from LG Switch's own logic ([`docs/rules.md`](docs/rules.md)) |

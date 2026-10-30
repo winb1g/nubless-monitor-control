@@ -1074,13 +1074,16 @@ mod tests {
     }
 
     #[test]
-    fn labs_gates_strong_controls() {
+    fn labs_never_unlocks_unconfirmed_controls() {
+        // Nothing is in Labs now: confirmed controls need no switch, and an
+        // unconfirmed one stays read-only with Labs on.
         let mut w = demo_worker("labs");
-        assert!(w.set("response-time", 1).is_err());
+        assert!(w.set("response-time", 1).is_ok());
+        assert!(w.set("ai-upscaling", 2).is_err());
         let (tx, rx) = channel();
         w.handle(Req::SetLabs(true, tx));
         assert!(rx.recv().unwrap().labs);
-        assert!(w.set("response-time", 1).is_ok());
+        assert!(w.set("ai-upscaling", 2).is_err());
     }
 
     #[test]
@@ -1310,8 +1313,8 @@ mod tests {
         ));
         assert_eq!(value(&mut w, "picture-mode"), Some(45));
         assert!(
-            w.set("response-time", 1).is_err(),
-            "unconfirmed controls still need Labs"
+            w.set("ai-upscaling", 2).is_err(),
+            "unconfirmed controls are never writable"
         );
     }
 
