@@ -100,6 +100,18 @@ const OFF_ON: &[Choice] = &[
     },
 ];
 
+/// Motion Blur Reduction (0xFA). Reads 1 with it On and 2 with it Off or hidden.
+const MOTION_BLUR: &[Choice] = &[
+    Choice {
+        raw: 1,
+        label: "On",
+    },
+    Choice {
+        raw: 2,
+        label: "Off",
+    },
+];
+
 /// AI Upscaling. LG's enum has three values (1, 2, 4) and the OSD offers three
 /// options (Off, Low, High); a real unit read 1 while LG Switch showed Off, so
 /// 1 = Off, and LG's "Middle" (2) is the OSD's Low. Unconfirmed: read-only.
@@ -215,9 +227,9 @@ pub const CONTROLS: &[Control] = &[
         note: "LG RATIO_VALUE; reads 1 (the OSD's Full Wide, by default). The capabilities string declares F5(01 02 03 04) and the OSD offers Full Wide, Original and Just Scan, so 2-4 are not named yet.",
     },
     Control {
-        id: "motion-blur", label: "Motion Blur Reduction", vcp: 0xFA, kind: ValueKind::Info,
-        confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Read-only. Reads 1 with Motion Blur Reduction On and 2 with it Off or hidden (Adaptive-Sync Basic/Extended clears it), so 0xFA cannot tell Off from unavailable; 0xF4 reads 7 while Adaptive-Sync is Off and 6 otherwise (probable availability flag). Which value writes Off (0 or 2) is untested. Only available while Adaptive-Sync is Off (docs/rules.md). Read with the OSD (fw 3.05, 2026-10-30).",
+        id: "motion-blur", label: "Motion Blur Reduction", vcp: 0xFA, kind: ValueKind::Choice { choices: MOTION_BLUR },
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::Visibility,
+        note: "1 = On, 2 = Off; both written and matched on the OSD. Only available while Adaptive-Sync is Off: with Basic or Extended the monitor ignores the write and 0xFA reads 2, so the controller reports it as not applied (docs/rules.md). 0xF4 reads 7 while Adaptive-Sync is Off and 6 otherwise (probable availability flag). Whether 0 also writes Off is untested (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "hdr", label: "HDR", vcp: 0xE2, kind: ValueKind::Info,
@@ -403,7 +415,7 @@ mod evidence_tests {
         ("green-gain", Candidate),
         ("blue-gain", Candidate),
         ("aspect-ratio", Candidate),
-        ("motion-blur", Candidate),
+        ("motion-blur", WriteConfirmed),
         ("hdr", Candidate),
         ("ai-scene-optimization", WriteConfirmed),
         ("ai-upscaling", ReadConfirmed),

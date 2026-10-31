@@ -23,7 +23,7 @@ Each item needs a person with the monitor. The exact commands and what to look f
 
 ## Motion Blur Reduction (needs Adaptive-Sync Off)
 
-- [x] With Adaptive-Sync **Off**, Motion Blur Reduction has two options. `0xFA` reads 1 for On and 2 for Off (fw 3.05, 2026-10-30). Writing Off as 0 or 2 is untested.
+- [x] With Adaptive-Sync **Off**, Motion Blur Reduction has two options. `0xFA` reads 1 for On and 2 for Off (fw 3.05, 2026-10-30). Written from nubless: On (1) and Off (2) each matched the OSD; Off as 0 is untested. With Adaptive-Sync Basic the write to On was ignored (fw 3.05, 2026-10-30).
 - [x] Adaptive-Sync Basic hides Motion Blur Reduction and `0xFA` reads 2: the monitor clears it (fw 3.05, 2026-10-30). `0xF4` reads 6 then, 7 with Adaptive-Sync Off.
 - [x] Back to Off: Motion Blur Reduction was Off, not restored (fw 3.05, 2026-10-30).
 

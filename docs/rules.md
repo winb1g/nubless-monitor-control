@@ -40,11 +40,11 @@ These interlocks were found by using the real monitor, not by reading LG Switch'
 
 | Observation | Seen | Implemented? |
 |---|---|---|
-| **Motion Blur Reduction is only available while Adaptive-Sync is Off.** Turning Adaptive-Sync **Off** makes Motion Blur Reduction available; it stays unavailable while Adaptive-Sync is **Basic** or **Extended**. | 2026-10-21, 27GM950B, firmware 3.05, found by the owner while testing | No. Motion Blur Reduction (`0xFA`) is still read-only (`Candidate`), so there is nothing to block yet. |
+| **Motion Blur Reduction is only available while Adaptive-Sync is Off.** Turning Adaptive-Sync **Off** makes Motion Blur Reduction available; it stays unavailable while Adaptive-Sync is **Basic** or **Extended**. | 2026-10-21, 27GM950B, firmware 3.05, found by the owner while testing | Partly. With Adaptive-Sync Basic the write to `0xFA` was ignored and the controller reported it as not applied (2026-10-30). There is no up-front "turn Adaptive-Sync off first" message yet. |
 | **Adaptive-Sync Basic or Extended clears Motion Blur Reduction.** After On, then Basic, then back to Off, Motion Blur Reduction was Off. `0xFA` reads 1 for On and 2 for Off or hidden; `0xF4` reads 7 with Adaptive-Sync Off and 6 otherwise. | 2026-10-30, 27GM950B, firmware 3.05, read at each OSD state with `nubless probe` | No. |
 
-What this implies once Motion Blur Reduction becomes writable (neither is built yet):
-- It would be refused with "turn Adaptive-Sync off first" while Adaptive-Sync is Basic or Extended, the same shape as the PBP/PIP rows above.
+What follows from that for Motion Blur Reduction (now writable):
+- It should be refused up front with "turn Adaptive-Sync off first" while Adaptive-Sync is Basic or Extended, the same shape as the PBP/PIP rows above. Not built yet; today the write is sent, ignored, and reported as not applied.
 - Turning Adaptive-Sync **on** (Basic or Extended) switches Motion Blur Reduction off (seen 2026-10-30), so the confirmation should say so.
 
 Still to record on the monitor (also in [`verify-on-hardware.md`](verify-on-hardware.md)):
