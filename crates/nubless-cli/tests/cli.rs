@@ -150,6 +150,27 @@ fn hardware_confirmed_controls_need_no_labs() {
 }
 
 #[test]
+fn labels_work_for_the_ai_and_color_controls_in_any_case_or_by_number() {
+    for (control, value) in [
+        ("ai-upscaling", "High"),
+        ("ai-upscaling", "high"),
+        ("ai-upscaling", "4"),
+        ("ai-upscaling", "0x04"),
+        ("color-preset", "manual"),
+        ("color-preset", "65502"),
+        ("color-preset", "Warm"),
+    ] {
+        let r = mock(&["set", control, value]);
+        assert!(r.ok, "{control} {value}: {}", r.err);
+        assert!(r.out.contains("->"), "{control} {value}: {}", r.out);
+    }
+    for (control, value) in [("ai-upscaling", "ultra"), ("color-preset", "4")] {
+        let r = mock(&["set", control, value]);
+        assert!(!r.ok && !r.out.contains("->"), "{control} {value}");
+    }
+}
+
+#[test]
 fn motion_blur_says_to_turn_adaptive_sync_off_first() {
     // The simulated monitor starts on Adaptive-Sync Extended.
     let r = mock(&["set", "motion-blur", "on"]);

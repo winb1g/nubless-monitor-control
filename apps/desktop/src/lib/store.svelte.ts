@@ -113,7 +113,9 @@ export async function setControl(id: string, value: number, opts: { quiet?: bool
   if (id === BLANKS_SCREEN && !opts.quiet) {
     const ok = await ask({
       title: "Switch Adaptive-Sync?",
-      body: "Your screen will go black for a few seconds while the monitor reconnects, and nubless can't talk to it until it's back. Nothing is wrong when that happens. Save your work if a game or video is running.",
+      body:
+        "Your screen will go black for a few seconds while the monitor reconnects, and nubless can't talk to it until it's back. Nothing is wrong when that happens. Save your work if a game or video is running." +
+        (value !== 0 && untrack(() => ui.state)?.controls.find((c) => c.id === "motion-blur")?.value === 1 ? " Motion Blur Reduction will switch off too; it only works with Adaptive-Sync off." : ""),
       confirm: "Switch",
       tone: "signal",
       cancel: "Not now",
@@ -140,7 +142,7 @@ export async function setControl(id: string, value: number, opts: { quiet?: bool
     askToKeep(id, label, control.display ?? String(value), before);
     return;
   }
-  toast(`${label} updated`, "success", async () => {
+  toast(out.toast ?? `${label} updated`, "success", async () => {
     await setControl(id, before, { quiet: true });
     toast("Undone", "info");
   });

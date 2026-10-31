@@ -234,7 +234,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "color-preset", label: "Color temperature", vcp: 0x14, kind: ValueKind::Choice { choices: COLOR_PRESETS },
         confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::None,
-        note: "Preset selector. Warm 3, Medium 5, Cool 9, Custom 11 and Manual 65502 (0xFFDE) were each written from nubless and matched the OSD; Manual came up on the C1 notch (0x69 read 6800). Custom unlocks the RGB sliders. The Manual slider itself is the read-only 0x69 control (fw 3.05, 2026-10-30).",
+        note: "Preset selector. Warm 3, Medium 5, Cool 9, Custom 11 and Manual 65502 (0xFFDE) were each written from nubless and matched the OSD; Manual came up on the C1 notch (0x69 read 6800). Custom unlocks the RGB sliders. The Manual slider itself is the read-only 0x69 control, so Undo and Reset put the preset back but not where the Manual slider was; the monitor keeps its own Manual position. Tested in Personalized Picture only; picture modes that lock color will ignore it (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "red-gain", label: "Red", vcp: 0x16, kind: range(0, 100),
@@ -258,7 +258,7 @@ pub const CONTROLS: &[Control] = &[
     },
     Control {
         id: "motion-blur", label: "Motion Blur Reduction", vcp: 0xFA, kind: ValueKind::Choice { choices: MOTION_BLUR },
-        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::Visibility,
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::None,
         note: "1 = On, 2 = Off; both written and matched on the OSD. Only available while Adaptive-Sync is Off: with Basic or Extended the monitor ignores the write and 0xFA reads 2, so the controller reports it as not applied (docs/rules.md). 0xF4 reads 7 while Adaptive-Sync is Off and 6 otherwise (probable availability flag). Whether 0 also writes Off is untested (fw 3.05, 2026-10-30).",
     },
     Control {

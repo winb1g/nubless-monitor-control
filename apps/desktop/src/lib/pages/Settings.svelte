@@ -44,7 +44,7 @@
 
     <ShortcutsItem />
 
-    <Item title="Labs" body="Try controls that match LG's own names and values but haven't been tested on a real monitor yet, like Response Time and Adaptive-Sync. Safe ranges and interlocks still apply.">
+    <Item title="Labs" body="Nothing is in Labs right now: every control nubless can change has been tested on a real monitor. Controls that match LG's names and values but haven't been tested yet will show up here first. Safe ranges and interlocks still apply.">
       {#snippet mark()}<FlaskConical size={20} strokeWidth={2} />{/snippet}
       <Toggle checked={!!s?.labs} label="Labs" onchange={(v) => setLabs(v)} />
     </Item>

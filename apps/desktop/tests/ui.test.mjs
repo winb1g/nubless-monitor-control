@@ -77,26 +77,89 @@ test("hardware-confirmed controls need no switch", async () => {
   assert.ok(await segment("Color temperature", "Cool").isEnabled());
 });
 
-test("Motion Blur Reduction is locked while Adaptive-Sync is on, and the lock says why", async () => {
-  await open();
-  assert.ok(await segment("Motion Blur Reduction", "On").isDisabled());
-  const lock = page.getByRole("button", { name: /Motion Blur Reduction only works while Adaptive-Sync is off/ });
-  await lock.click();
-  assert.match(await page.getByRole("tooltip").innerText(), /Turn Adaptive-Sync off first/);
-  // Adaptive-Sync Off unlocks it, and it can then be switched on.
-  await segment("Adaptive-Sync/VRR", "Off").click();
+const row = (label) => page.locator("div.row", { hasText: label });
+const lockOf = (label) => row(label).getByRole("button", { name: "Locked" });
+const switchSync = async (to) => {
+  await segment("Adaptive-Sync/VRR", to).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Switch" }).click();
   await page.clock.runFor(500);
-  assert.ok(await segment("Motion Blur Reduction", "On").isEnabled());
+};
+
+test("Motion Blur Reduction is locked while Adaptive-Sync is on, and the lock says why", async () => {
+  await open();
+  assert.equal(await segment("Motion Blur Reduction", "On").getAttribute("aria-disabled"), "true");
+  assert.equal(await row("Motion Blur Reduction").locator(".pop").count(), 0, "closed until asked");
+  await lockOf("Motion Blur Reduction").click();
+  assert.match(await row("Motion Blur Reduction").locator(".pop").innerText(), /Turn Adaptive-Sync off first/);
+});
+
+test("the reason is reachable by keyboard and by clicking the dead option", async () => {
+  await open();
+  const lock = lockOf("Motion Blur Reduction");
+  // A screen reader hears the reason with the button, without opening anything.
+  await lock.focus();
+  const described = await lock.getAttribute("aria-describedby");
+  assert.match(await page.locator("#" + described).innerText(), /only works while Adaptive-Sync is off/);
+  await page.keyboard.press("Enter");
+  const pop = row("Motion Blur Reduction").locator(".pop");
+  await pop.waitFor();
+  await page.keyboard.press("Escape");
+  await pop.waitFor({ state: "hidden" });
+  assert.ok(await lock.evaluate((el) => el === document.activeElement), "focus stays on the lock");
+  // Clicking the option that can't be used explains why, instead of doing nothing.
+  await segment("Motion Blur Reduction", "On").click({ force: true });
+  await pop.waitFor();
+  // A click elsewhere closes it.
+  await page.mouse.click(4, 4);
+  await pop.waitFor({ state: "hidden" });
+});
+
+test("Adaptive-Sync Off unlocks Motion Blur Reduction, and it changes without a question", async () => {
+  await open();
+  await switchSync("Off");
+  assert.equal(await segment("Motion Blur Reduction", "On").getAttribute("aria-disabled"), "false");
   await segment("Motion Blur Reduction", "On").click();
   await page.clock.runFor(300);
   assert.equal(await segment("Motion Blur Reduction", "On").getAttribute("aria-pressed"), "true");
-  // Turning Adaptive-Sync back on clears it and locks the control again.
-  await segment("Adaptive-Sync/VRR", "Basic").click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Switch" }).click();
-  await page.clock.runFor(500);
-  assert.ok(await segment("Motion Blur Reduction", "On").isDisabled());
+  assert.equal(await prompt().count(), 0, "it can't hide the picture");
+});
+
+test("turning Adaptive-Sync back on switches Motion Blur Reduction off, says so, and relocks it", async () => {
+  await open();
+  await switchSync("Off");
+  await segment("Motion Blur Reduction", "On").click();
+  await page.clock.runFor(300);
+  await switchSync("Basic");
+  assert.equal(await segment("Motion Blur Reduction", "On").getAttribute("aria-disabled"), "true");
   assert.equal(await segment("Motion Blur Reduction", "Off").getAttribute("aria-pressed"), "true");
+  await page.getByText("Motion Blur Reduction turned off with it").waitFor();
+});
+
+test("the Adaptive-Sync warning says Motion Blur Reduction will switch off when it is on", async () => {
+  await open();
+  await switchSync("Off");
+  await segment("Adaptive-Sync/VRR", "Basic").click();
+  const dialog = page.getByRole("alertdialog");
+  assert.doesNotMatch(await dialog.innerText(), /Motion Blur Reduction/, "nothing to switch off yet");
+  await dialog.getByRole("button", { name: "Not now" }).click();
+  await segment("Motion Blur Reduction", "On").click();
+  await page.clock.runFor(300);
+  await segment("Adaptive-Sync/VRR", "Basic").click();
+  assert.match(await dialog.innerText(), /Motion Blur Reduction will switch off too/);
+  await dialog.getByRole("button", { name: "Not now" }).click();
+});
+
+test("PBP/PIP locks AI Upscaling with a reason, and turning it off unlocks it", async () => {
+  await open();
+  assert.equal(await segment("AI Upscaling", "High").getAttribute("aria-disabled"), "false");
+  await page.getByRole("switch", { name: "Simulate PBP/PIP" }).click();
+  await page.clock.runFor(300);
+  assert.equal(await segment("AI Upscaling", "High").getAttribute("aria-disabled"), "true");
+  await lockOf("AI Upscaling").click();
+  assert.match(await row("AI Upscaling").locator(".pop").innerText(), /not available while PBP\/PIP is on/);
+  await page.getByRole("switch", { name: "Simulate PBP/PIP" }).click();
+  await page.clock.runFor(300);
+  assert.equal(await segment("AI Upscaling", "High").getAttribute("aria-disabled"), "false");
 });
 
 test("AI Upscaling and the color temperature presets change from the Picture section", async () => {

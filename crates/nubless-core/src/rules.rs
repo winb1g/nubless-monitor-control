@@ -340,6 +340,12 @@ pub const AI_UPSCALING_NEEDS_PBP_OFF: &str = "AI Upscaling is not available whil
 pub const MOTION_BLUR_NEEDS_SYNC_OFF: &str =
     "Motion Blur Reduction only works while Adaptive-Sync is off. Turn Adaptive-Sync off first.";
 
+/// Order for putting a snapshot back: a control that depends on another goes
+/// after it (Motion Blur Reduction needs Adaptive-Sync restored first).
+pub fn restore_rank(id: &str) -> u8 {
+    u8::from(id == "motion-blur")
+}
+
 /// Raw `0xF8` value for Adaptive-Sync Off.
 pub const ADAPTIVE_SYNC_OFF: u16 = 0;
 

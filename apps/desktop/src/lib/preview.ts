@@ -134,9 +134,10 @@ export function previewBackend() {
       history.push([id, values[id]]);
       values[id] = value;
       // The monitor clears Motion Blur Reduction when Adaptive-Sync comes on.
+      const cleared = id === "adaptive-sync" && value !== 0 && values["motion-blur"] === 1;
       if (id === "adaptive-sync" && value !== 0) values["motion-blur"] = 2;
       emit();
-      return { state: state(), toast: `${label} updated`, undoable: true };
+      return { state: state(), toast: cleared ? `${label} updated. Motion Blur Reduction turned off with it.` : `${label} updated`, undoable: true };
     },
     async revertControl(id: string, value: number): Promise<Outcome> {
       await wait(120);

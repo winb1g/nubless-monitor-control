@@ -29,7 +29,7 @@ Safe, open-source, cross-platform control for the **LG UltraGear AI 27GM950B**, 
 nubless replaces the monitor's on-screen menu (OSD) with an app on your desktop. It talks to the monitor over DDC/CI, the same channel LG's own *LG Switch* uses, so you can change picture settings from a window, a tray popover, or a keyboard shortcut instead of from the nub. It is written in Rust, with a Tauri 2 and Svelte desktop app and a command-line tool.
 
 > [!NOTE]
-> **Early software.** Reads are verified on a real 27GM950B. Brightness, picture mode, AI Scene Optimization and AI Sound writes are verified against the monitor's own menu. Everything else is read-only or sits behind **Labs** until it has been checked on hardware. Not affiliated with LG Electronics.
+> **Early software.** Reads are verified on a real 27GM950B. Brightness, picture mode, AI Scene Optimization and AI Sound writes are verified against the monitor's own menu. Everything else is read-only until it has been checked on hardware (**Labs** exists for controls that are decoded but not yet confirmed; none are in it right now). Not affiliated with LG Electronics.
 
 ## Features
 
@@ -39,7 +39,7 @@ nubless replaces the monitor's on-screen menu (OSD) with an app on your desktop.
 
 - **Picture** – brightness, contrast, and all eight picture modes
 - **Smart features** – with LG's own interlocks, so incompatible features never collide
-- **Gaming and sound controls** – the unverified ones stay in Labs
+- **Gaming and sound controls** – Response Time, Adaptive-Sync, Motion Blur Reduction and volume are confirmed on hardware
 - **Tray popover** – quick brightness and picture mode from the system tray
 - **Keyboard shortcuts** – global and rebindable
 - **Start at login**, light and dark themes, and one-click updates

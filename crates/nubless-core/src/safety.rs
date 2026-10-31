@@ -80,9 +80,10 @@ pub const AI_CHANNEL: u8 = 0xA6;
 /// Low byte that turns a 0xA6 write into "report this sub-command's value".
 pub const SUB_QUERY: u8 = 0xFF;
 /// 0xA6 sub-commands decoded from LG Switch (`AIMODE_DISPLAYSETTINGS_VALUES`):
-/// `(sub-command, may set a value)`. 2 = AI Scene Optimization, 4 = AI Upscaling
-/// (value encoding unconfirmed, so query only), 6 = AI Sound. Everything else on
-/// 0xA6 (supported-option lists, PC AI mode, scene prediction) stays denied.
+/// `(sub-command, may set a value)`. 2 = AI Scene Optimization, 4 = AI Upscaling,
+/// 6 = AI Sound; all three were written from nubless and matched the OSD (fw 3.05).
+/// Everything else on 0xA6 (supported-option lists, PC AI mode, scene prediction)
+/// stays denied.
 pub const AI_SUBCOMMANDS: &[(u8, bool)] = &[(2, true), (4, true), (6, true)];
 
 fn sub_of(control: &Control) -> Option<u8> {
@@ -133,6 +134,10 @@ pub fn check_query(
 }
 
 /// Decide whether `value` may be written to `control` on a monitor with `caps`.
+/// The profile's value table is what decides which values are allowed; the
+/// capabilities string only has to declare the code. The 27GM950B's string lists
+/// fewer values than the monitor accepts (e.g. `14(05 08 0B)` yet Warm 3, Cool 9
+/// and Manual 0xFFDE all work), so declared sub-values are not trusted.
 /// For a sub-command control, `value` is the argument; the sub-command byte is
 /// added here.
 pub fn check_write(
@@ -264,6 +269,23 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn the_profiles_value_table_decides_not_the_declared_sub_values() {
+        // The capabilities string declares 14(05 08 0B) and FA(00 01), but the
+        // monitor took 3, 9, 0xFFDE and 2 (fw 3.05); the profile is what is checked.
+        let preset = PROFILE.control("color-preset").unwrap();
+        for v in [3, 5, 9, 11, 0xFFDE] {
+            assert!(
+                check_write(preset, v, &caps(), WritePolicy::Safe).is_ok(),
+                "{v}"
+            );
+        }
+        assert!(check_write(preset, 4, &caps(), WritePolicy::Safe).is_err());
+        let blur = PROFILE.control("motion-blur").unwrap();
+        assert!(check_write(blur, 2, &caps(), WritePolicy::Safe).is_ok());
+        assert!(check_write(blur, 0, &caps(), WritePolicy::Safe).is_err());
     }
 
     #[test]
