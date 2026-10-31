@@ -96,6 +96,11 @@
       </div>
     </div>
   {:else if !s}
+    <div class="starting" role="status" in:fly={rise}>
+      <div class="hatch wide" aria-hidden="true"></div>
+      <h2>Looking for your monitor…</h2>
+      <p class="muted">This can take a few seconds when nubless starts, while it checks your displays.</p>
+    </div>
     <div class="cols">
       <div class="left">
         {#each [0, 1] as _}<div class="skeleton" style="height:72px"></div>{/each}
@@ -108,7 +113,7 @@
       <div class="left">
         <Section title="Picture" {loading} aside={loadingHint}>
           {#each group("picture").filter((c) => c.kind === "range") as c (c.id)}<Slider control={c} fine />{/each}
-          {#each group("picture").filter((c) => c.kind === "choice") as c (c.id)}<Segmented control={c} />{/each}
+          {#each group("picture").filter((c) => c.kind === "choice" && c.id !== "ai-upscaling") as c (c.id)}<Segmented control={c} />{/each}
           {#each group("picture").filter((c) => c.kind !== "range" && c.kind !== "choice" && c.id !== "color-temperature") as c (c.id)}
             <div class="inforow"><span>{c.label}</span>{#if c.enabled}<span class="mono small">{c.display}</span>{:else}<Lock control={c} />{/if}</div>
           {/each}
@@ -141,6 +146,7 @@
               {/if}
             </div>
           {/each}
+          {#if byId["ai-upscaling"]}<div class="upscaling"><Segmented control={byId["ai-upscaling"]} /></div>{/if}
           {#if s.demo}
             <div class="feature">
               <div class="ftext"><b>PBP/PIP <span class="tag solid">Demo</span></b><span class="muted small">Pretend PBP/PIP is on, to see the interlocks.</span></div>
@@ -303,6 +309,10 @@
     padding: var(--space-2) 0;
     border-bottom: 1px solid var(--rule);
   }
+  .upscaling {
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule);
+  }
   .ftext {
     display: flex;
     flex-direction: column;
@@ -351,6 +361,22 @@
   .ltext b {
     font-weight: 800;
     font-size: var(--fs-lg);
+  }
+
+  .starting {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin-bottom: var(--space-8);
+  }
+  .starting h2 {
+    font-size: var(--fs-3xl);
+  }
+  .wide {
+    width: 320px;
+    max-width: 100%;
+    height: 10px;
   }
 
   .empty {

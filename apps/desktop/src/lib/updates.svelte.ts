@@ -1,7 +1,7 @@
 // Update flow: check → "Update and restart" → download with progress → install → relaunch.
 // Uses Tauri's signed updater against GitHub Releases (`latest.json`).
 
-import { inTauri } from "./api";
+import { api, inTauri } from "./api";
 import { ui } from "./store.svelte";
 
 export type Phase = "idle" | "checking" | "current" | "unpublished" | "available" | "downloading" | "installing" | "restarting" | "error";
@@ -13,10 +13,49 @@ export const upd = $state({
   progress: 0,
   error: "",
   checkedAt: null as Date | null,
+  /** Check on its own at start and every few hours. On unless the user turned it off. */
+  auto: true,
+  autoLoaded: false,
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pending: any = null;
+
+const RECHECK_MS = 6 * 60 * 60 * 1000;
+let timers: ReturnType<typeof setTimeout>[] = [];
+
+/** Mirror "an update is waiting" into the nav dot and the tray. */
+function announce(version: string | null) {
+  ui.updateBadge = version !== null;
+  api().then((b) => b.setUpdateAvailable(version)).catch(() => {});
+}
+
+/** Read the saved choice and (re)start the quiet background checks to match it. */
+export async function loadAutoUpdate() {
+  try {
+    upd.auto = await (await api()).getAutoUpdate();
+  } catch {
+    upd.auto = true;
+  }
+  upd.autoLoaded = true;
+  scheduleChecks();
+}
+
+export async function setAutoUpdate(on: boolean) {
+  upd.auto = await (await api()).setAutoUpdate(on);
+  scheduleChecks();
+}
+
+function scheduleChecks() {
+  timers.forEach(clearTimeout);
+  timers = [];
+  if (!upd.auto) return;
+  const again = () => {
+    void checkForUpdates();
+    timers.push(setTimeout(again, RECHECK_MS));
+  };
+  timers.push(setTimeout(again, 2500));
+}
 
 export async function checkForUpdates() {
   if (upd.phase === "checking" || upd.phase === "downloading" || upd.phase === "installing") return;
@@ -35,10 +74,10 @@ export async function checkForUpdates() {
       upd.phase = "available";
       upd.version = pending.version;
       upd.notes = pending.body ?? "";
-      ui.updateBadge = true;
+      announce(pending.version);
     } else {
       upd.phase = "current";
-      ui.updateBadge = false;
+      announce(null);
     }
   } catch (e) {
     upd.checkedAt = new Date();

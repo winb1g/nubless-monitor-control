@@ -187,6 +187,108 @@ fn set_autostart(app: AppHandle, on: bool) -> Result<bool, String> {
     launcher.is_enabled().map_err(|e| e.to_string())
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+struct UpdatePrefs {
+    auto_check: bool,
+}
+
+impl Default for UpdatePrefs {
+    fn default() -> Self {
+        UpdatePrefs { auto_check: true }
+    }
+}
+
+fn update_prefs_path() -> std::path::PathBuf {
+    nubless_core::paths::state_dir().join("updates.json")
+}
+
+/// Checking for updates automatically is on unless the user turned it off.
+#[tauri::command]
+fn get_auto_update() -> bool {
+    std::fs::read_to_string(update_prefs_path())
+        .ok()
+        .and_then(|t| serde_json::from_str::<UpdatePrefs>(&t).ok())
+        .unwrap_or_default()
+        .auto_check
+}
+
+#[tauri::command]
+fn set_auto_update(on: bool) -> Result<bool, String> {
+    let path = update_prefs_path();
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let json =
+        serde_json::to_string_pretty(&UpdatePrefs { auto_check: on }).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| format!("Couldn't save this setting: {e}"))?;
+    Ok(on)
+}
+
+/// The tray's menu entry and plain icon, kept so an available update can swap them.
+struct TrayUpdate {
+    item: MenuItem<tauri::Wry>,
+    icon: tauri::image::Image<'static>,
+}
+
+/// `icon` with a green pip in its bottom-right corner (RGBA in, RGBA out).
+fn with_pip(rgba: &[u8], w: u32, h: u32) -> Vec<u8> {
+    let mut out = rgba.to_vec();
+    let size = w.min(h) as f32;
+    let r = size * 0.24;
+    let (cx, cy) = (w as f32 - r - size * 0.03, h as f32 - r - size * 0.03);
+    for y in 0..h {
+        for x in 0..w {
+            let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
+            // Dark ring so the pip reads on light and dark taskbars; green inside.
+            let (ring, fill) = (
+                (r + 0.5 - d).clamp(0.0, 1.0),
+                (r * 0.7 + 0.5 - d).clamp(0.0, 1.0),
+            );
+            if ring == 0.0 {
+                continue;
+            }
+            let i = ((y * w + x) * 4) as usize;
+            let mix = |base: u8, c: u8, a: f32| (base as f32 * (1.0 - a) + c as f32 * a) as u8;
+            for (k, (dark, green)) in [(20u8, 46u8), (20, 196), (20, 79)].into_iter().enumerate() {
+                let c = mix(dark, green, fill);
+                out[i + k] = mix(out[i + k], c, ring);
+            }
+            out[i + 3] = out[i + 3].max((ring * 255.0) as u8);
+        }
+    }
+    out
+}
+
+/// Tell the tray whether an update is waiting: a green pip on the icon and a menu
+/// entry that names the version. `None` puts both back.
+#[tauri::command]
+fn set_update_available(app: AppHandle, version: Option<String>) {
+    let (Some(tray), Some(parts)) = (app.tray_by_id("nubless"), app.try_state::<TrayUpdate>())
+    else {
+        return;
+    };
+    let _ = parts.item.set_text(match &version {
+        Some(v) => format!("Update {v} available"),
+        None => "Check for updates".to_string(),
+    });
+    let icon = if version.is_some() {
+        let img = &parts.icon;
+        tauri::image::Image::new_owned(
+            with_pip(img.rgba(), img.width(), img.height()),
+            img.width(),
+            img.height(),
+        )
+    } else {
+        parts.icon.clone()
+    };
+    let _ = tray.set_icon(Some(icon));
+    let _ = tray.set_tooltip(Some(match &version {
+        Some(v) => format!("nubless: update {v} available"),
+        None => "nubless".to_string(),
+    }));
+}
+
 #[tauri::command]
 fn open_main(app: AppHandle, page: Option<String>) {
     show_main(&app);
@@ -339,6 +441,9 @@ pub fn run() {
             set_hotkeys,
             get_autostart,
             set_autostart,
+            get_auto_update,
+            set_auto_update,
+            set_update_available,
             open_main,
             quit
         ])
@@ -351,8 +456,18 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit nubless", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(app, &[&open, &updates, &sep, &quit])?;
+            let bundled = app.default_window_icon().expect("bundle icon");
+            let icon = tauri::image::Image::new_owned(
+                bundled.rgba().to_vec(),
+                bundled.width(),
+                bundled.height(),
+            );
+            app.manage(TrayUpdate {
+                item: updates.clone(),
+                icon: icon.clone(),
+            });
             TrayIconBuilder::with_id("nubless")
-                .icon(app.default_window_icon().cloned().expect("bundle icon"))
+                .icon(icon)
                 .tooltip("nubless")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -410,7 +525,21 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::popover_position;
+    use super::{popover_position, with_pip};
+
+    #[test]
+    fn the_pip_is_green_in_the_corner_and_leaves_the_rest_alone() {
+        let (w, h) = (32u32, 32u32);
+        let plain = vec![200u8; (w * h * 4) as usize];
+        let out = with_pip(&plain, w, h);
+        let px = |x: u32, y: u32| {
+            let i = ((y * w + x) * 4) as usize;
+            (out[i], out[i + 1], out[i + 2])
+        };
+        assert_eq!(px(0, 0), (200, 200, 200));
+        let (r, g, b) = px(26, 26);
+        assert!(g > r && g > b, "expected green, got {:?}", (r, g, b));
+    }
 
     // The 5K screen from the bug report: work area starts below a 64 px bar.
     const AREA: (f64, f64, f64, f64) = (0.0, 64.0, 5120.0, 2816.0);

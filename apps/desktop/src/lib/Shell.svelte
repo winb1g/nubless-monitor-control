@@ -1,8 +1,9 @@
 <script lang="ts">
   import { pageIn, pageOut, fadeQuick } from "./motion";
+  import { onMount } from "svelte";
   import { fly, fade } from "svelte/transition";
   import { ui, toast, type Page } from "./store.svelte";
-  import { checkForUpdates, upd } from "./updates.svelte";
+  import { loadAutoUpdate } from "./updates.svelte";
   import Logo from "./components/Logo.svelte";
   import Displays from "./pages/Displays.svelte";
   import SettingsPage from "./pages/Settings.svelte";
@@ -16,10 +17,9 @@
     { id: "about", label: "About" },
   ];
 
-  // Quietly check for updates once at start; the nav shows a signal square if one is ready.
-  $effect(() => {
-    if (upd.phase === "idle") setTimeout(checkForUpdates, 2500);
-  });
+  // Quietly check for updates at start and every few hours (unless turned off in
+  // Settings); the nav and the tray show a signal if one is ready.
+  onMount(() => void loadAutoUpdate());
 
   // First connection ever: a small moment to say the original settings are safe. Once only.
   let savedToastShown = false;
@@ -33,7 +33,7 @@
   const s = $derived(ui.state);
   /** The LED: blinks while the monitor is simulated, solid when real, dashed when absent. */
   const status = $derived(
-    !s ? null : s.phase === "connected" ? (s.demo ? { text: "Simulated", led: "blink" } : { text: "Connected", led: "" }) : s.phase === "scanning" ? { text: "Looking…", led: "off" } : { text: "No monitor", led: "off" },
+    !s ? { text: "Looking for your monitor…", led: "off" } : s.phase === "connected" ? (s.demo ? { text: "Simulated", led: "blink" } : { text: "Connected", led: "" }) : s.phase === "scanning" ? { text: "Looking…", led: "off" } : { text: "No monitor", led: "off" },
   );
 </script>
 
