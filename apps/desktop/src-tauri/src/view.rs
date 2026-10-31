@@ -3,7 +3,7 @@
 
 use nubless_core::profile::{Confidence, Control, Risk, ValueKind, WritePolicy};
 use nubless_core::profiles::gm950b::PROFILE;
-use nubless_core::rules::{Availabilities, FeatureState};
+use nubless_core::rules::{self, Availabilities, Availability, FeatureState};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
@@ -88,8 +88,8 @@ pub struct AppState {
 pub fn group_of(id: &str) -> &'static str {
     match id {
         "picture-mode" => "mode",
-        "brightness" | "contrast" | "black-stabilizer" | "color-temperature" | "red-gain"
-        | "green-gain" | "blue-gain" => "picture",
+        "brightness" | "contrast" | "black-stabilizer" | "color-preset" | "color-temperature"
+        | "red-gain" | "green-gain" | "blue-gain" => "picture",
         "response-time" | "adaptive-sync" | "motion-blur" | "aspect-ratio" => "game",
         "volume" | "mute" | "ai-sound" => "sound",
         "ai-scene-optimization" => "smart",
@@ -122,6 +122,37 @@ pub fn lock_reason(
         Some("Not mapped yet. We know where it lives, but not how it's encoded."),
         None,
     )
+}
+
+/// Locks that depend on another setting, applied once every control has its
+/// view. The reason is what the padlock popover shows.
+pub fn apply_interlocks(controls: &mut [ControlView], features: &Availabilities) {
+    let sync = controls
+        .iter()
+        .find(|c| c.id == "adaptive-sync")
+        .and_then(|c| c.value);
+    let locks = [
+        (
+            "motion-blur",
+            matches!(
+                rules::motion_blur_availability(sync),
+                Availability::Unavailable { .. }
+            ),
+            rules::MOTION_BLUR_NEEDS_SYNC_OFF,
+        ),
+        (
+            "ai-upscaling",
+            matches!(features.ai_upscaling, Availability::Unavailable { .. }),
+            rules::AI_UPSCALING_NEEDS_PBP_OFF,
+        ),
+    ];
+    for (id, locked, reason) in locks {
+        if let (true, Some(c)) = (locked, controls.iter_mut().find(|c| c.id == id)) {
+            c.enabled = false;
+            c.reason = Some(reason);
+            c.unlock = None;
+        }
+    }
 }
 
 pub fn view_control(c: &'static Control, value: Option<u16>, policy: WritePolicy) -> ControlView {

@@ -6,6 +6,7 @@ use super::*;
 use crate::journal::EntryState;
 use crate::mock::MockMonitor;
 use crate::profiles::gm950b::PROFILE;
+use crate::transport::VcpReading;
 
 fn ctl(m: MockMonitor, policy: WritePolicy) -> Controller<MockMonitor> {
     Controller::new(m, &PROFILE, policy, Timing::instant(), Journal::in_memory()).unwrap()
@@ -238,7 +239,18 @@ fn every_writable_control_writes_reads_back_and_undoes() {
         .iter()
         .filter(|c| WritePolicy::Experimental.allows(c))
     {
-        let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Experimental);
+        let mut m = MockMonitor::gm950b();
+        if control.id == "motion-blur" {
+            // Only available while Adaptive-Sync is Off.
+            m.values.insert(
+                0xF8,
+                VcpReading {
+                    current: 0,
+                    max: 255,
+                },
+            );
+        }
+        let mut c = ctl(m, WritePolicy::Experimental);
         let before = c.read(control.id).unwrap().current;
         let target = other_value(control, before);
         let applied = c.write(control.id, target).unwrap();

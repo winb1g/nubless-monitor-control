@@ -322,7 +322,7 @@ fn get<T: Transport>(ctl: &mut Controller<T>, id: Option<&str>) -> AnyResult {
 
 fn parse_value(control: &nubless_core::Control, s: &str) -> Result<u16, String> {
     let norm = |x: &str| x.to_ascii_lowercase().replace([' ', '-', '_'], "");
-    if let ValueKind::Choice { choices } = control.kind {
+    if let ValueKind::Choice { choices } | ValueKind::SubCommand { choices, .. } = control.kind {
         if let Some(c) = choices.iter().find(|c| norm(c.label) == norm(s)) {
             return Ok(c.raw);
         }

@@ -4,7 +4,6 @@
 
 import type { AppState, ControlView, Feature, FeatureOutcome, FeatureState, HotkeyAction, HotkeysView, Outcome } from "./types";
 
-const LABS = "Looks right, but hasn't been tested on a real monitor yet.";
 const UNMAPPED = "Not mapped yet. We know where it lives, but not how it's encoded.";
 const INFO = "Information from your monitor.";
 
@@ -15,20 +14,21 @@ function c(p: Partial<ControlView> & Pick<ControlView, "id" | "label" | "group" 
   return { value: null, display: null, min: 0, max: 0, choices: [], enabled: true, reason: null, unlock: null, confirm: CONFIRM.includes(p.id), ...p };
 }
 
-function controls(labs: boolean, v: Record<string, number>): ControlView[] {
-  const strong = (x: ControlView) => (labs ? x : { ...x, enabled: false, reason: LABS, unlock: "labs" as const });
+function controls(v: Record<string, number>, pbp: boolean): ControlView[] {
   const list: ControlView[] = [
     c({ id: "brightness", label: "Brightness", group: "picture", kind: "range", min: 0, max: 100 }),
     c({ id: "contrast", label: "Contrast", group: "picture", kind: "range", min: 20, max: 100 }),
-    strong(c({ id: "black-stabilizer", label: "Black Stabilizer", group: "picture", kind: "range", min: 0, max: 100 })),
-    strong(c({ id: "response-time", label: "Response Time", group: "game", kind: "choice", choices: [{ raw: 0, label: "Off" }, { raw: 3, label: "Normal" }, { raw: 2, label: "Fast" }, { raw: 1, label: "Faster" }] })),
-    strong(c({ id: "adaptive-sync", label: "Adaptive-Sync/VRR", group: "game", kind: "choice", choices: [{ raw: 0, label: "Off" }, { raw: 2, label: "Basic" }, { raw: 3, label: "Extended" }] })),
+    c({ id: "black-stabilizer", label: "Black Stabilizer", group: "picture", kind: "range", min: 0, max: 100 }),
+    c({ id: "response-time", label: "Response Time", group: "game", kind: "choice", choices: [{ raw: 0, label: "Off" }, { raw: 3, label: "Normal" }, { raw: 2, label: "Fast" }, { raw: 1, label: "Faster" }] }),
+    c({ id: "adaptive-sync", label: "Adaptive-Sync/VRR", group: "game", kind: "choice", choices: [{ raw: 0, label: "Off" }, { raw: 2, label: "Basic" }, { raw: 3, label: "Extended" }] }),
+    c({ id: "motion-blur", label: "Motion Blur Reduction", group: "game", kind: "choice", choices: [{ raw: 1, label: "On" }, { raw: 2, label: "Off" }], ...(v["adaptive-sync"] !== 0 ? { enabled: false, reason: "Motion Blur Reduction only works while Adaptive-Sync is off. Turn Adaptive-Sync off first." } : {}) }),
     c({ id: "picture-mode", label: "Picture Mode", group: "mode", kind: "choice", choices: [
       { raw: 65, label: "Personalized Picture" }, { raw: 45, label: "Gamer 1" }, { raw: 46, label: "Gamer 2" }, { raw: 18, label: "Calibration1" },
       { raw: 19, label: "Calibration2" }, { raw: 6, label: "Color Weakness" }, { raw: 25, label: "DCI-P3" }, { raw: 30, label: "FPS" }] }),
-    c({ id: "color-temperature", label: "Color temperature", group: "picture", kind: "info", enabled: false, reason: UNMAPPED }),
-    strong(c({ id: "volume", label: "Volume", group: "sound", kind: "range", min: 0, max: 100 })),
-    strong(c({ id: "mute", label: "Mute", group: "sound", kind: "choice", choices: [{ raw: 1, label: "Muted" }, { raw: 2, label: "Unmuted" }] })),
+    c({ id: "color-preset", label: "Color temperature", group: "picture", kind: "choice", choices: [{ raw: 3, label: "Warm" }, { raw: 5, label: "Medium" }, { raw: 9, label: "Cool" }, { raw: 11, label: "Custom" }, { raw: 65502, label: "Manual" }] }),
+    c({ id: "ai-upscaling", label: "AI Upscaling", group: "picture", kind: "choice", choices: [{ raw: 1, label: "Off" }, { raw: 2, label: "Low" }, { raw: 4, label: "High" }], ...(pbp ? { enabled: false, reason: "AI Upscaling is not available while PBP/PIP is on." } : {}) }),
+    c({ id: "volume", label: "Volume", group: "sound", kind: "range", min: 0, max: 100 }),
+    c({ id: "mute", label: "Mute", group: "sound", kind: "choice", choices: [{ raw: 1, label: "Muted" }, { raw: 2, label: "Unmuted" }] }),
     c({ id: "ai-sound", label: "AI Sound", group: "sound", kind: "choice", choices: [{ raw: 1, label: "Off" }, { raw: 2, label: "On" }] }),
     c({ id: "input", label: "Input", group: "info", kind: "choice", enabled: false, reason: "Changing this could disconnect nubless from your monitor, so it stays with the monitor's own menu.", choices: [{ raw: 15, label: "DisplayPort" }] }),
     c({ id: "firmware", label: "Firmware", group: "info", kind: "info", enabled: false, reason: INFO }),
@@ -83,7 +83,7 @@ export function previewBackend() {
       }),
     };
   };
-  const values: Record<string, number> = { "ai-sound": 1, brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
+  const values: Record<string, number> = { "ai-sound": 1, brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "motion-blur": 2, "ai-upscaling": 1, "color-preset": 11, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
   const original = { ...values };
   let labs = false;
   // `?preview=empty` starts with no monitor found, to design the empty state.
@@ -101,7 +101,7 @@ export function previewBackend() {
     demo: true,
     monitors: connected ? [{ id: 0, name: "27GM950B (demo)", detail: "Browser preview", supported: true, selected: true, demo: true }] : [],
     model: "27GM950B",
-    controls: connected ? controls(labs, values) : [],
+    controls: connected ? controls(values, features.pbp) : [],
     features: {
       state: features,
       availability: Object.fromEntries(["ai_scene_optimization", "ai_picture_mode", "my_display_preset", "ai_upscaling", "picture_wizard"].map((k) => [k, features.pbp ? { state: "unavailable", reason: { kind: "blocked-by-pbp" } } : { state: "available" }])),
@@ -127,10 +127,14 @@ export function previewBackend() {
       await wait(120);
       // `?preview=fail-vrr` makes turning Adaptive-Sync off fail the way a monitor that went quiet does.
       if (FAIL_VRR && id === "adaptive-sync") throw "the monitor did not apply 'adaptive-sync' = 0 (it did not answer); the previous value was restored. Another setting may be locking it (for example a picture mode or AI Scene Optimization).";
-      const label = controls(labs, values).find((x) => x.id === id)?.label ?? "Setting";
+      const locked = controls(values, features.pbp).find((x) => x.id === id);
+      if (locked && !locked.enabled && locked.reason) throw locked.reason;
+      const label = controls(values, features.pbp).find((x) => x.id === id)?.label ?? "Setting";
       if (values[id] === value) return { state: state(), toast: null, undoable: false };
       history.push([id, values[id]]);
       values[id] = value;
+      // The monitor clears Motion Blur Reduction when Adaptive-Sync comes on.
+      if (id === "adaptive-sync" && value !== 0) values["motion-blur"] = 2;
       emit();
       return { state: state(), toast: `${label} updated`, undoable: true };
     },
@@ -165,7 +169,7 @@ export function previewBackend() {
       features = { ...features, picture_mode_blocks_ai: !allows };
       await wait(500);
       picture = label;
-      const raw = controls(labs, values).find((x) => x.id === "picture-mode")?.choices.find((ch) => ch.label === label)?.raw;
+      const raw = controls(values, features.pbp).find((x) => x.id === "picture-mode")?.choices.find((ch) => ch.label === label)?.raw;
       if (raw !== undefined) values["picture-mode"] = raw;
       refreshing = true;
       setTimeout(() => { refreshing = false; emit(); }, 2500);

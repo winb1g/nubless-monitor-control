@@ -125,10 +125,19 @@ fn hardware_confirmed_controls_need_no_labs() {
         )
         .ok
     );
-    // AI Upscaling is only read-confirmed: refused with or without Labs.
+    // AI Upscaling and the color presets passed theirs too, by label, in the same way.
     for args in [
-        &["--mock", "set", "ai-upscaling", "low"][..],
-        &["--mock", "--experimental", "set", "ai-upscaling", "low"][..],
+        ["--mock", "set", "ai-upscaling", "low"],
+        ["--mock", "set", "color-preset", "Cool"],
+    ] {
+        let r = nubless(&args, Stdin::Closed);
+        assert!(r.ok, "{args:?}: {}", r.err);
+        assert!(r.out.contains("->"), "{}", r.out);
+    }
+    // A candidate is refused with or without Labs, and nothing is written.
+    for args in [
+        &["--mock", "set", "red-gain", "60"][..],
+        &["--mock", "--experimental", "set", "red-gain", "60"][..],
     ] {
         let r = nubless(args, Stdin::Closed);
         assert!(!r.ok, "{args:?}");
@@ -138,6 +147,15 @@ fn hardware_confirmed_controls_need_no_labs() {
             r.out
         );
     }
+}
+
+#[test]
+fn motion_blur_says_to_turn_adaptive_sync_off_first() {
+    // The simulated monitor starts on Adaptive-Sync Extended.
+    let r = mock(&["set", "motion-blur", "on"]);
+    assert!(!r.ok, "{}", r.out);
+    assert!(r.err.contains("Turn Adaptive-Sync off first"), "{}", r.err);
+    assert!(!r.out.contains("->"), "{}", r.out);
 }
 
 #[test]
@@ -217,7 +235,7 @@ fn the_default_wait_is_five_seconds() {
 
 #[test]
 fn controls_explains_what_is_locked_without_labs() {
-    // Nothing is in Labs now; AI Upscaling is the read-only example.
+    // Nothing is in Labs now; Red gain (still a candidate) is the read-only example.
     let safe = mock(&["controls"]);
     let labs = labs(&["controls"]);
     assert!(safe.ok && labs.ok);
@@ -229,12 +247,12 @@ fn controls_explains_what_is_locked_without_labs() {
             .to_string()
     };
     assert!(
-        row(&safe.out, "ai-upscaling").contains("read-only"),
+        row(&safe.out, "red-gain").contains("read-only"),
         "{}",
         safe.out
     );
     assert!(
-        row(&labs.out, "ai-upscaling").contains("read-only"),
+        row(&labs.out, "red-gain").contains("read-only"),
         "{}",
         labs.out
     );

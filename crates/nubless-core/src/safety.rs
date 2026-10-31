@@ -83,7 +83,7 @@ pub const SUB_QUERY: u8 = 0xFF;
 /// `(sub-command, may set a value)`. 2 = AI Scene Optimization, 4 = AI Upscaling
 /// (value encoding unconfirmed, so query only), 6 = AI Sound. Everything else on
 /// 0xA6 (supported-option lists, PC AI mode, scene prediction) stays denied.
-pub const AI_SUBCOMMANDS: &[(u8, bool)] = &[(2, true), (4, false), (6, true)];
+pub const AI_SUBCOMMANDS: &[(u8, bool)] = &[(2, true), (4, true), (6, true)];
 
 fn sub_of(control: &Control) -> Option<u8> {
     match control.kind {
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn candidates_and_dead_ends_are_never_written() {
-        for id in ["input", "red-gain", "firmware", "dual-mode", "ai-upscaling"] {
+        for id in ["input", "red-gain", "firmware", "dual-mode"] {
             let c = PROFILE.control(id).unwrap();
             for v in [0u16, 1, 2, 3, 0x0F, 18, 50] {
                 assert!(

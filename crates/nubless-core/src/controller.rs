@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::caps::{Capabilities, CapsError};
 use crate::journal::{EntryState, Journal};
 use crate::profile::{Confidence, Control, Profile, Risk, ValueKind, WritePolicy};
+use crate::rules::{self, Availability, Notice};
 use crate::safety::{self, SafetyError};
 use crate::transport::{Transport, TransportError, VcpReading};
 
@@ -78,6 +79,9 @@ pub enum ControlError {
     /// rolled back, because a blind write into a resyncing panel proves nothing.
     #[error("sent '{id}' = {wanted}, but the monitor did not answer afterwards (it may still be switching); nothing was rolled back")]
     Silent { id: &'static str, wanted: u16 },
+    /// Another setting has to change first (see [`crate::rules`]). Nothing was sent.
+    #[error("{}", .0.text())]
+    Interlocked(Notice),
     #[error("nothing to undo")]
     NothingToUndo,
     #[error("these settings belong to {saved}. Switch your monitor to {saved} first (it's on {current} now), then try again.")]
@@ -262,6 +266,7 @@ impl<T: Transport> Controller<T> {
         let value = control.snap(value);
         // Validate first so a forbidden write costs no DDC traffic at all.
         let validated = safety::check_write(control, value, &self.caps, self.policy)?;
+        self.check_interlock(control)?;
         let old = self
             .read_undoable(control)
             .ok_or(ControlError::CannotReadCurrent(control.id))?;
@@ -284,6 +289,20 @@ impl<T: Transport> Controller<T> {
             new: value,
             needs_confirmation,
         })
+    }
+
+    /// Rules between settings (`rules.rs`), checked after the safety guard and
+    /// before any write. A reading that fails never locks a control.
+    fn check_interlock(&mut self, control: &Control) -> Result<(), ControlError> {
+        if control.id != "motion-blur" {
+            return Ok(());
+        }
+        let sync = self.profile.control("adaptive-sync").map(|c| c.vcp);
+        let reading = sync.and_then(|code| self.read_code(code).ok());
+        match rules::motion_blur_availability(reading.map(|r| r.current)) {
+            Availability::Unavailable { reason } => Err(ControlError::Interlocked(reason)),
+            Availability::Available => Ok(()),
+        }
     }
 
     /// After [`ControlError::Silent`]: read the control again (the caller has
@@ -654,6 +673,25 @@ mod tests {
     }
 
     #[test]
+    fn motion_blur_waits_for_adaptive_sync_off() {
+        let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Safe);
+        // The mock starts on Adaptive-Sync Extended (3).
+        let err = c.write("motion-blur", 1).unwrap_err();
+        assert!(matches!(err, ControlError::Interlocked(_)), "{err}");
+        assert!(
+            err.to_string().contains("Turn Adaptive-Sync off first"),
+            "{err}"
+        );
+        assert!(
+            c.transport.writes.is_empty(),
+            "a locked write sends nothing"
+        );
+        c.write("adaptive-sync", 0).unwrap();
+        c.write("motion-blur", 1).unwrap();
+        assert_eq!(c.read("motion-blur").unwrap().current, 1);
+    }
+
+    #[test]
     fn unreadable_current_value_blocks_the_write() {
         let mut m = MockMonitor::gm950b();
         m.values.remove(&0x10);
@@ -720,9 +758,14 @@ mod ai_channel_tests {
 
     #[test]
     fn unconfirmed_ai_sub_commands_need_labs_to_read() {
+        // Nothing on 0xA6 is unconfirmed any more, so use a Candidate copy.
+        let candidate: &'static Control = Box::leak(Box::new(Control {
+            confidence: crate::profile::Confidence::Candidate,
+            ..*PROFILE.control("ai-upscaling").unwrap()
+        }));
         let mut c = ctl(WritePolicy::Safe);
         assert!(matches!(
-            c.read("ai-upscaling"),
+            c.read_control_as(candidate, WritePolicy::Safe),
             Err(ControlError::Safety(SafetyError::NotConfident { .. }))
         ));
         assert!(
@@ -754,15 +797,20 @@ mod ai_channel_tests {
     }
 
     #[test]
-    fn upscaling_is_readable_but_never_written() {
-        let mut c = ctl(WritePolicy::Experimental);
+    fn upscaling_writes_its_own_sub_command_without_labs() {
+        let mut c = ctl(WritePolicy::Safe);
+        let scene = c.transport.ai[&2];
         assert_eq!(c.read("ai-upscaling").unwrap().current, 1);
-        assert!(c.write("ai-upscaling", 4).is_err());
-        assert!(!c
-            .transport
-            .writes
-            .iter()
-            .any(|&(code, v)| code == 0xA6 && v >> 8 == 4 && v & 0xFF != 0xFF));
+        for value in [2, 4, 1] {
+            c.write("ai-upscaling", value).unwrap();
+            assert_eq!(c.read("ai-upscaling").unwrap().current, value);
+        }
+        assert!(c.write("ai-upscaling", 3).is_err(), "3 is not an option");
+        assert!(c.transport.writes.contains(&(0xA6, 0x0404)));
+        assert_eq!(
+            c.transport.ai[&2], scene,
+            "AI Scene Optimization is untouched"
+        );
     }
 
     #[test]

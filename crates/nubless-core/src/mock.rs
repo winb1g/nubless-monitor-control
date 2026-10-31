@@ -68,6 +68,7 @@ impl MockMonitor {
         let values = BTreeMap::from([
             (0x10, v(80, 100)),
             (0x12, v(70, 100)),
+            (0x14, v(11, 0xFFFF)),
             (0x15, v(65, 255)),
             (0x16, v(50, 100)),
             (0x18, v(50, 100)),
