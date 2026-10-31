@@ -15,15 +15,15 @@ Each item needs a person with the monitor. The exact commands and what to look f
 
 - [x] **Picture mode** `0x15`: all eight tile values read on the wire ([research 09](research/09-ai-channel-and-picture-modes.md)).
 - [ ] Switch picture mode from nubless (Labs): Gamer 1 and back, then Calibration1 with AI Scene Optimization on (expect the question, AI off, then the switch).
-- [x] **Color temperature**: presets on `0x14` (Warm 3, Medium 5, Cool 9, Custom 11, Manual 65502); the Manual slider is `0x69` in kelvin (W8 4000, 0 6500, C1 6800, C10 10000). Read-only. Still open: the other 15 Manual notches, whether Custom's sliders are `0x16`/`0x18`/`0x1A` in R/G/B order (they unlocked at 50/50/50), and any write. Fw 3.05, 2026-10-30.
+- [x] **Color temperature**: presets on `0x14` (Warm 3, Medium 5, Cool 9, Custom 11, Manual 65502); the Manual slider is `0x69` in kelvin (W8 4000, 0 6500, C1 6800, C10 10000). The presets are writable (`color-preset`): Warm, Medium, Cool, Custom and Manual were each written from nubless and matched the OSD; Manual came up on C1 (fw 3.05, 2026-10-30). Still open: writing the Manual slider (`0x69`), the other 15 Manual notches, and whether Custom's sliders are `0x16`/`0x18`/`0x1A` in R/G/B order (they unlocked at 50/50/50).
 - [x] **AI Scene Optimization**, **AI Sound**, **AI Upscaling**: decoded from LG Switch as sub-commands 2, 6 and 4 on VCP 0xA6 ([research 09](research/09-ai-channel-and-picture-modes.md)).
 - [x] Turn on Labs and switch AI Scene Optimization and AI Sound from nubless once each, checking the OSD (first writes on 0xA6).
-- [x] AI Upscaling: Off 1, Low 2, High 4, read with the OSD on each (fw 3.05, 2026-10-30). The old 1-while-Off report was right. Writing is untested.
+- [x] AI Upscaling: Off 1, Low 2, High 4, read with the OSD on each (fw 3.05, 2026-10-30). The old 1-while-Off report was right. Written from nubless: Off, Low and High each matched the OSD (fw 3.05, 2026-10-30).
 - [ ] **Dual-Mode** `0xB1`: what does *Conversion* send? (Read-only until understood.)
 
 ## Motion Blur Reduction (needs Adaptive-Sync Off)
 
-- [x] With Adaptive-Sync **Off**, Motion Blur Reduction has two options. `0xFA` reads 1 for On and 2 for Off (fw 3.05, 2026-10-30). Writing Off as 0 or 2 is untested.
+- [x] With Adaptive-Sync **Off**, Motion Blur Reduction has two options. `0xFA` reads 1 for On and 2 for Off (fw 3.05, 2026-10-30). Written from nubless: On (1) and Off (2) each matched the OSD; Off as 0 is untested. With Adaptive-Sync Basic the write to On was ignored (fw 3.05, 2026-10-30).
 - [x] Adaptive-Sync Basic hides Motion Blur Reduction and `0xFA` reads 2: the monitor clears it (fw 3.05, 2026-10-30). `0xF4` reads 6 then, 7 with Adaptive-Sync Off.
 - [x] Back to Off: Motion Blur Reduction was Off, not restored (fw 3.05, 2026-10-30).
 

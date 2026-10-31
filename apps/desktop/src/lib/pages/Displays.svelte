@@ -108,7 +108,8 @@
       <div class="left">
         <Section title="Picture" {loading} aside={loadingHint}>
           {#each group("picture").filter((c) => c.kind === "range") as c (c.id)}<Slider control={c} fine />{/each}
-          {#each group("picture").filter((c) => c.kind !== "range") as c (c.id)}
+          {#each group("picture").filter((c) => c.kind === "choice") as c (c.id)}<Segmented control={c} />{/each}
+          {#each group("picture").filter((c) => c.kind !== "range" && c.kind !== "choice" && c.id !== "color-temperature") as c (c.id)}
             <div class="inforow"><span>{c.label}</span>{#if c.enabled}<span class="mono small">{c.display}</span>{:else}<Lock control={c} />{/if}</div>
           {/each}
         </Section>

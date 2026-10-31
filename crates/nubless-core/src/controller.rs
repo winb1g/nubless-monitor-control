@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::caps::{Capabilities, CapsError};
 use crate::journal::{EntryState, Journal};
 use crate::profile::{Confidence, Control, Profile, Risk, ValueKind, WritePolicy};
+use crate::rules::{self, Availability, Notice};
 use crate::safety::{self, SafetyError};
 use crate::transport::{Transport, TransportError, VcpReading};
 
@@ -78,6 +79,16 @@ pub enum ControlError {
     /// rolled back, because a blind write into a resyncing panel proves nothing.
     #[error("sent '{id}' = {wanted}, but the monitor did not answer afterwards (it may still be switching); nothing was rolled back")]
     Silent { id: &'static str, wanted: u16 },
+    /// Another setting has to change first (see [`crate::rules`]). Nothing was sent.
+    #[error("{}", .0.text())]
+    Interlocked(Notice),
+    /// A rule needs another setting's value and the monitor would not give it.
+    /// Nothing was sent.
+    #[error("could not check {depends_on} (the monitor did not answer), so '{id}' was not changed; try again in a moment")]
+    CannotCheck {
+        id: &'static str,
+        depends_on: &'static str,
+    },
     #[error("nothing to undo")]
     NothingToUndo,
     #[error("these settings belong to {saved}. Switch your monitor to {saved} first (it's on {current} now), then try again.")]
@@ -274,6 +285,7 @@ impl<T: Transport> Controller<T> {
                 needs_confirmation: false,
             });
         }
+        self.check_interlock(control)?;
         let index = self
             .journal
             .record(control.id, control.vcp, old.current, value);
@@ -284,6 +296,33 @@ impl<T: Transport> Controller<T> {
             new: value,
             needs_confirmation,
         })
+    }
+
+    /// Rules between settings (`rules.rs`), checked after the safety guard and
+    /// before any write that changes something. A reading that fails refuses the
+    /// write instead of guessing: the monitor ignores a locked write anyway, and
+    /// sending one into a panel that is still resyncing proves nothing.
+    fn check_interlock(&mut self, control: &Control) -> Result<(), ControlError> {
+        if control.id != "motion-blur" {
+            return Ok(());
+        }
+        let cannot = ControlError::CannotCheck {
+            id: control.id,
+            depends_on: "Adaptive-Sync",
+        };
+        let sync = self
+            .profile
+            .control("adaptive-sync")
+            .ok_or_else(|| ControlError::UnknownControl("adaptive-sync".into()))?;
+        // A 0/0 answer is a monitor that has nothing to say, not an Off.
+        let reading = match self.read_code(sync.vcp) {
+            Ok(r) if r.max != 0 || r.current != 0 => r,
+            _ => return Err(cannot),
+        };
+        match rules::motion_blur_availability(Some(reading.current)) {
+            Availability::Unavailable { reason } => Err(ControlError::Interlocked(reason)),
+            Availability::Available => Ok(()),
+        }
     }
 
     /// After [`ControlError::Silent`]: read the control again (the caller has
@@ -338,10 +377,13 @@ impl<T: Transport> Controller<T> {
             .iter()
             .find(|c| c.id == entry.control)
             .ok_or_else(|| ControlError::UnknownControl(entry.control.clone()))?;
-        let max = self
+        let reading = self
             .read_control_as(control, WritePolicy::Experimental)
-            .map(|r| r.max)
-            .unwrap_or(u16::MAX);
+            .ok();
+        let max = reading.map_or(u16::MAX, |r| r.max);
+        if reading.map(|r| r.current) != Some(entry.old) {
+            self.check_interlock(control)?;
+        }
         let write = check_restore(control, entry.old, max, &self.caps)?;
         self.pace();
         self.transport.set_vcp(&write)?;
@@ -404,7 +446,10 @@ impl<T: Transport> Controller<T> {
             }
         }
         let mut results = Vec::new();
-        for (id, &value) in &snap.values {
+        // A setting that depends on another goes back after the one it depends on.
+        let mut items: Vec<_> = snap.values.iter().collect();
+        items.sort_by_key(|(id, _)| rules::restore_rank(id));
+        for (id, &value) in items {
             let result = (|| {
                 let control = self.control(id)?;
                 let old = self
@@ -413,6 +458,7 @@ impl<T: Transport> Controller<T> {
                 if old.current == value {
                     return Ok(());
                 }
+                self.check_interlock(control)?;
                 let write = check_restore(control, value, old.max, &self.caps)?;
                 let index = self
                     .journal
@@ -653,6 +699,120 @@ mod tests {
         assert_eq!(c.read("adaptive-sync").unwrap().current, 3);
     }
 
+    fn snapshot_of(values: &[(&str, u16)]) -> Snapshot {
+        Snapshot {
+            model: PROFILE.model.to_string(),
+            values: values.iter().map(|&(k, v)| (k.to_string(), v)).collect(),
+            mode: None,
+        }
+    }
+
+    #[test]
+    fn restore_puts_adaptive_sync_back_before_motion_blur() {
+        // Alphabetical order would also work here; the rule must not depend on it.
+        let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Safe);
+        let results = c.restore(&snapshot_of(&[("motion-blur", 1), ("adaptive-sync", 0)]));
+        assert!(results.iter().all(|(_, r)| r.is_ok()), "{results:?}");
+        assert_eq!(c.read("adaptive-sync").unwrap().current, 0);
+        assert_eq!(c.read("motion-blur").unwrap().current, 1);
+        assert_eq!(crate::rules::restore_rank("adaptive-sync"), 0);
+        assert_eq!(crate::rules::restore_rank("motion-blur"), 1);
+    }
+
+    #[test]
+    fn restore_explains_motion_blur_when_adaptive_sync_would_not_go_back() {
+        let mut m = MockMonitor::gm950b();
+        m.ignore_writes_to.push(0xF8);
+        let mut c = ctl(m, WritePolicy::Safe);
+        let results = c.restore(&snapshot_of(&[("adaptive-sync", 0), ("motion-blur", 1)]));
+        let blur = results.iter().find(|(id, _)| id == "motion-blur").unwrap();
+        assert!(
+            matches!(blur.1, Err(ControlError::Interlocked(_))),
+            "{results:?}"
+        );
+        assert!(
+            !c.transport.writes.iter().any(|&(code, _)| code == 0xFA),
+            "no write into a locked control"
+        );
+    }
+
+    #[test]
+    fn undo_of_motion_blur_is_refused_while_adaptive_sync_is_on() {
+        let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Safe);
+        c.write("adaptive-sync", 0).unwrap();
+        c.write("motion-blur", 1).unwrap();
+        let off = c.write("motion-blur", 2).unwrap().journal_index.unwrap();
+        c.write("adaptive-sync", 3).unwrap();
+        let err = c.revert(off).unwrap_err();
+        assert!(matches!(err, ControlError::Interlocked(_)), "{err}");
+        assert_eq!(c.read("motion-blur").unwrap().current, 2);
+    }
+
+    #[test]
+    fn undo_that_changes_nothing_is_not_blocked_by_the_lock() {
+        let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Safe);
+        c.write("adaptive-sync", 0).unwrap();
+        let on = c.write("motion-blur", 1).unwrap().journal_index.unwrap();
+        // Adaptive-Sync coming on cleared it; the entry's old value (Off) is already true.
+        c.write("adaptive-sync", 3).unwrap();
+        assert_eq!(c.read("motion-blur").unwrap().current, 2);
+        c.revert(on).unwrap();
+    }
+
+    #[test]
+    fn a_monitor_that_cannot_tell_us_adaptive_sync_gets_no_motion_blur_write() {
+        for unknown in [
+            None,
+            Some(crate::transport::VcpReading { current: 0, max: 0 }),
+        ] {
+            let mut m = MockMonitor::gm950b();
+            match unknown {
+                None => {
+                    m.values.remove(&0xF8);
+                }
+                Some(r) => {
+                    m.values.insert(0xF8, r);
+                }
+            }
+            let mut c = ctl(m, WritePolicy::Safe);
+            let err = c.write("motion-blur", 1).unwrap_err();
+            assert!(matches!(err, ControlError::CannotCheck { .. }), "{err}");
+            assert!(
+                err.to_string().contains("could not check Adaptive-Sync"),
+                "{err}"
+            );
+            assert!(c.transport.writes.is_empty(), "nothing was sent");
+        }
+    }
+
+    #[test]
+    fn motion_blur_already_where_you_asked_is_not_told_off() {
+        let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Safe);
+        // Adaptive-Sync is on and Motion Blur reads Off: asking for Off is a no-op.
+        let a = c.write("motion-blur", 2).unwrap();
+        assert_eq!(a.journal_index, None);
+        assert!(c.transport.writes.is_empty());
+    }
+
+    #[test]
+    fn motion_blur_waits_for_adaptive_sync_off() {
+        let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Safe);
+        // The mock starts on Adaptive-Sync Extended (3).
+        let err = c.write("motion-blur", 1).unwrap_err();
+        assert!(matches!(err, ControlError::Interlocked(_)), "{err}");
+        assert!(
+            err.to_string().contains("Turn Adaptive-Sync off first"),
+            "{err}"
+        );
+        assert!(
+            c.transport.writes.is_empty(),
+            "a locked write sends nothing"
+        );
+        c.write("adaptive-sync", 0).unwrap();
+        c.write("motion-blur", 1).unwrap();
+        assert_eq!(c.read("motion-blur").unwrap().current, 1);
+    }
+
     #[test]
     fn unreadable_current_value_blocks_the_write() {
         let mut m = MockMonitor::gm950b();
@@ -720,9 +880,14 @@ mod ai_channel_tests {
 
     #[test]
     fn unconfirmed_ai_sub_commands_need_labs_to_read() {
+        // Nothing on 0xA6 is unconfirmed any more, so use a Candidate copy.
+        let candidate: &'static Control = Box::leak(Box::new(Control {
+            confidence: crate::profile::Confidence::Candidate,
+            ..*PROFILE.control("ai-upscaling").unwrap()
+        }));
         let mut c = ctl(WritePolicy::Safe);
         assert!(matches!(
-            c.read("ai-upscaling"),
+            c.read_control_as(candidate, WritePolicy::Safe),
             Err(ControlError::Safety(SafetyError::NotConfident { .. }))
         ));
         assert!(
@@ -754,15 +919,20 @@ mod ai_channel_tests {
     }
 
     #[test]
-    fn upscaling_is_readable_but_never_written() {
-        let mut c = ctl(WritePolicy::Experimental);
+    fn upscaling_writes_its_own_sub_command_without_labs() {
+        let mut c = ctl(WritePolicy::Safe);
+        let scene = c.transport.ai[&2];
         assert_eq!(c.read("ai-upscaling").unwrap().current, 1);
-        assert!(c.write("ai-upscaling", 4).is_err());
-        assert!(!c
-            .transport
-            .writes
-            .iter()
-            .any(|&(code, v)| code == 0xA6 && v >> 8 == 4 && v & 0xFF != 0xFF));
+        for value in [2, 4, 1] {
+            c.write("ai-upscaling", value).unwrap();
+            assert_eq!(c.read("ai-upscaling").unwrap().current, value);
+        }
+        assert!(c.write("ai-upscaling", 3).is_err(), "3 is not an option");
+        assert!(c.transport.writes.contains(&(0xA6, 0x0404)));
+        assert_eq!(
+            c.transport.ai[&2], scene,
+            "AI Scene Optimization is untouched"
+        );
     }
 
     #[test]

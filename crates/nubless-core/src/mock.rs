@@ -68,6 +68,7 @@ impl MockMonitor {
         let values = BTreeMap::from([
             (0x10, v(80, 100)),
             (0x12, v(70, 100)),
+            (0x14, v(11, 0xFFFF)),
             (0x15, v(65, 255)),
             (0x16, v(50, 100)),
             (0x18, v(50, 100)),
@@ -186,6 +187,11 @@ impl Transport for MockMonitor {
         if self.ignore_writes_to.contains(&write.code()) {
             return Ok(());
         }
+        // Like the real unit, Motion Blur Reduction only exists while Adaptive-Sync is
+        // Off: the write is ignored otherwise (fw 3.05, 2026-10-30).
+        if write.code() == 0xFA && self.values.get(&0xF8).is_some_and(|v| v.current != 0) {
+            return Ok(());
+        }
         let entry = self.values.entry(write.code()).or_insert(VcpReading {
             current: 0,
             max: 0xFFFF,
@@ -200,6 +206,12 @@ impl Transport for MockMonitor {
             return Ok(());
         }
         entry.current = write.value();
+        // ...and turning Adaptive-Sync on clears it.
+        if write.code() == 0xF8 && write.value() != 0 {
+            if let Some(blur) = self.values.get_mut(&0xFA) {
+                blur.current = 2;
+            }
+        }
         Ok(())
     }
 }

@@ -96,6 +96,16 @@ struct Conn {
 }
 
 impl Conn {
+    /// Re-read some controls after something else changed them behind our back.
+    /// One the monitor doesn't answer keeps its last value.
+    fn reread(&mut self, ids: &[&'static str]) {
+        for &id in ids {
+            if let Ok(r) = self.ctl.read(id) {
+                self.values.insert(id, Some(r.current));
+            }
+        }
+    }
+
     /// Re-read every control. A control the monitor doesn't answer keeps the value
     /// it last had: after a write that resyncs the panel the monitor goes quiet for
     /// a few seconds, and forgetting every value then would grey out the whole app.
@@ -465,6 +475,7 @@ impl Worker {
         self.writes_allowed()?;
         let conn = self.conn.as_mut().expect("checked");
         let control = conn.ctl.control(id).map_err(|e| e.to_string())?;
+        let blur_before = conn.value("motion-blur");
         let applied = match conn.ctl.write(id, value) {
             Ok(a) => a,
             // The panel is resyncing and the monitor went quiet (or its link was
@@ -472,8 +483,13 @@ impl Worker {
             Err(ControlError::Silent { .. }) => self.after_silence(id, value)?,
             Err(e) => {
                 // The write was refused or rolled back: show what the monitor really has.
-                if let Ok(r) = conn.ctl.read(control.id) {
-                    conn.values.insert(control.id, Some(r.current));
+                conn.reread(&[control.id]);
+                if matches!(
+                    e,
+                    ControlError::Interlocked(_) | ControlError::CannotCheck { .. }
+                ) {
+                    // What it depends on may have changed in the monitor's own menu.
+                    conn.reread(&["adaptive-sync"]);
                 }
                 return Err(e.to_string());
             }
@@ -482,11 +498,25 @@ impl Worker {
             return Err("The monitor is not connected".into());
         };
         conn.values.insert(control.id, Some(applied.new));
+        // The monitor clears Motion Blur Reduction when Adaptive-Sync comes on.
+        // Say so: Undo puts Adaptive-Sync back, not what it cleared.
+        let mut cleared_blur = false;
+        if id == "adaptive-sync" {
+            conn.reread(&["motion-blur"]);
+            cleared_blur = blur_before == Some(1) && conn.value("motion-blur") != Some(1);
+        }
         let label = control.label;
         let changed = applied.journal_index.is_some();
+        let toast = match (changed, cleared_blur) {
+            (true, true) => Some(format!(
+                "{label} updated. Motion Blur Reduction turned off with it."
+            )),
+            (true, false) => Some(format!("{label} updated")),
+            (false, _) => None,
+        };
         Ok(Outcome {
             state: self.state(),
-            toast: changed.then(|| format!("{label} updated")),
+            toast,
             undoable: changed,
         })
     }
@@ -519,8 +549,9 @@ impl Worker {
             mode: None,
         };
         let results = conn.ctl.restore(&snapshot);
-        if let Ok(r) = conn.ctl.read(control.id) {
-            conn.values.insert(control.id, Some(r.current));
+        conn.reread(&[control.id]);
+        if control.id == "adaptive-sync" {
+            conn.reread(&["motion-blur"]);
         }
         if let Some((_, Err(e))) = results.into_iter().next() {
             return Err(format!("{} couldn't be put back: {e}", control.label));
@@ -825,11 +856,12 @@ impl Worker {
                 refreshing: false,
             };
         };
-        let controls = PROFILE
+        let mut controls: Vec<_> = PROFILE
             .controls
             .iter()
             .map(|c| view::view_control(c, conn.value(c.id), policy))
             .collect();
+        view::apply_interlocks(&mut controls, &features.availability);
         let baseline = BaselineView {
             saved: conn.baseline.is_some(),
             values: conn.baseline.as_ref().map_or(0, |b| b.values.len()),
@@ -1079,11 +1111,78 @@ mod tests {
         // unconfirmed one stays read-only with Labs on.
         let mut w = demo_worker("labs");
         assert!(w.set("response-time", 1).is_ok());
-        assert!(w.set("ai-upscaling", 2).is_err());
+        assert!(w.set("ai-upscaling", 2).is_ok());
+        assert!(w.set("color-preset", 3).is_ok());
+        assert!(w.set("red-gain", 60).is_err());
         let (tx, rx) = channel();
         w.handle(Req::SetLabs(true, tx));
         assert!(rx.recv().unwrap().labs);
-        assert!(w.set("ai-upscaling", 2).is_err());
+        assert!(w.set("red-gain", 60).is_err());
+    }
+
+    #[test]
+    fn motion_blur_is_locked_until_adaptive_sync_is_off() {
+        let mut w = demo_worker("motion-blur");
+        let view = |w: &mut Worker| {
+            w.state()
+                .controls
+                .into_iter()
+                .find(|c| c.id == "motion-blur")
+                .unwrap()
+        };
+        // The demo monitor starts on Adaptive-Sync Extended.
+        let locked = view(&mut w);
+        assert!(!locked.enabled);
+        assert_eq!(
+            locked.reason,
+            Some("Motion Blur Reduction only works while Adaptive-Sync is off. Turn Adaptive-Sync off first.")
+        );
+        assert!(w.set("motion-blur", 1).is_err());
+        w.set("adaptive-sync", 0).unwrap();
+        assert!(view(&mut w).enabled);
+        w.set("motion-blur", 1).unwrap();
+        assert_eq!(view(&mut w).value, Some(1));
+        let out = w.set("adaptive-sync", 3).unwrap();
+        assert_eq!(
+            out.toast.as_deref(),
+            Some("Adaptive-Sync/VRR updated. Motion Blur Reduction turned off with it.")
+        );
+        let blur = view(&mut w);
+        assert_eq!((blur.value, blur.enabled), (Some(2), false));
+    }
+
+    #[test]
+    fn motion_blur_does_not_ask_to_be_kept() {
+        let mut w = demo_worker("motion-blur-keep");
+        let blur = w
+            .state()
+            .controls
+            .into_iter()
+            .find(|c| c.id == "motion-blur")
+            .unwrap();
+        assert!(!blur.confirm, "it can't hide the picture");
+    }
+
+    #[test]
+    fn a_refused_motion_blur_write_rereads_adaptive_sync() {
+        let mut w = demo_worker("motion-blur-stale");
+        w.set("adaptive-sync", 0).unwrap();
+        // Adaptive-Sync is turned on in the monitor's own menu: the cache is stale.
+        w.conn
+            .as_mut()
+            .unwrap()
+            .ctl
+            .write("adaptive-sync", 2)
+            .unwrap();
+        let err = w.set("motion-blur", 1).unwrap_err();
+        assert!(err.contains("Turn Adaptive-Sync off first"), "{err}");
+        let locked = w
+            .state()
+            .controls
+            .into_iter()
+            .find(|c| c.id == "motion-blur")
+            .unwrap();
+        assert!(!locked.enabled, "the lock follows what the monitor has");
     }
 
     #[test]
@@ -1145,6 +1244,17 @@ mod tests {
             w.feature(Feature::MyDisplayPreset, true, false),
             FeatureOutcome::Blocked { .. }
         ));
+        let upscaling = w
+            .state()
+            .controls
+            .into_iter()
+            .find(|c| c.id == "ai-upscaling")
+            .unwrap();
+        assert!(!upscaling.enabled);
+        assert_eq!(
+            upscaling.reason,
+            Some("AI Upscaling is not available while PBP/PIP is on.")
+        );
     }
 
     #[test]
@@ -1313,7 +1423,7 @@ mod tests {
         ));
         assert_eq!(value(&mut w, "picture-mode"), Some(45));
         assert!(
-            w.set("ai-upscaling", 2).is_err(),
+            w.set("red-gain", 60).is_err(),
             "unconfirmed controls are never writable"
         );
     }

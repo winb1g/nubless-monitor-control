@@ -1,6 +1,6 @@
 // Drives the real UI in a browser against the preview backend (the same demo
 // monitor `npm run dev` shows), so the flows people rely on are checked without
-// hardware: Labs gating, "Keep this change?", Undo, the AI interlock dialog.
+// hardware: locks that say why, "Keep this change?", Undo, the AI interlock dialog.
 //
 //   npm run test:ui
 //
@@ -58,12 +58,6 @@ async function open({ hash = "", query = "", size = { width: 1040, height: 900 }
   return page;
 }
 
-const labsOn = async () => {
-  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: /settings/i }).click();
-  await page.getByRole("switch", { name: "Labs" }).click();
-  await page.clock.runFor(300);
-  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: /displays/i }).click();
-};
 const segment = (group, name) => page.getByRole("group", { name: group }).getByRole("button", { name, exact: true });
 const prompt = () => page.getByRole("group", { name: "Keep this change?" });
 const slider = (id) => page.locator(`input#slider-${id}`);
@@ -75,17 +69,115 @@ test("the demo monitor loads with its controls", async () => {
   assert.equal(await slider("contrast").inputValue(), "70");
 });
 
-test("Labs controls are locked until Labs is on, and the lock says why", async () => {
+test("hardware-confirmed controls need no switch", async () => {
   await open();
-  assert.ok(await segment("Response Time", "Faster").isDisabled());
-  await labsOn();
   assert.ok(await segment("Response Time", "Faster").isEnabled());
   assert.ok(await slider("black-stabilizer").isEnabled());
+  assert.ok(await segment("AI Upscaling", "High").isEnabled());
+  assert.ok(await segment("Color temperature", "Cool").isEnabled());
+});
+
+const row = (label) => page.locator("div.row", { hasText: label });
+const lockOf = (label) => row(label).getByRole("button", { name: "Locked" });
+const switchSync = async (to) => {
+  await segment("Adaptive-Sync/VRR", to).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Switch" }).click();
+  await page.clock.runFor(500);
+};
+
+test("Motion Blur Reduction is locked while Adaptive-Sync is on, and the lock says why", async () => {
+  await open();
+  assert.equal(await segment("Motion Blur Reduction", "On").getAttribute("aria-disabled"), "true");
+  assert.equal(await row("Motion Blur Reduction").locator(".pop").count(), 0, "closed until asked");
+  await lockOf("Motion Blur Reduction").click();
+  assert.match(await row("Motion Blur Reduction").locator(".pop").innerText(), /Turn Adaptive-Sync off first/);
+});
+
+test("the reason is reachable by keyboard and by clicking the dead option", async () => {
+  await open();
+  const lock = lockOf("Motion Blur Reduction");
+  // A screen reader hears the reason with the button, without opening anything.
+  await lock.focus();
+  const described = await lock.getAttribute("aria-describedby");
+  assert.match(await page.locator("#" + described).innerText(), /only works while Adaptive-Sync is off/);
+  await page.keyboard.press("Enter");
+  const pop = row("Motion Blur Reduction").locator(".pop");
+  await pop.waitFor();
+  await page.keyboard.press("Escape");
+  await pop.waitFor({ state: "hidden" });
+  assert.ok(await lock.evaluate((el) => el === document.activeElement), "focus stays on the lock");
+  // Clicking the option that can't be used explains why, instead of doing nothing.
+  await segment("Motion Blur Reduction", "On").click({ force: true });
+  await pop.waitFor();
+  // A click elsewhere closes it.
+  await page.mouse.click(4, 4);
+  await pop.waitFor({ state: "hidden" });
+});
+
+test("Adaptive-Sync Off unlocks Motion Blur Reduction, and it changes without a question", async () => {
+  await open();
+  await switchSync("Off");
+  assert.equal(await segment("Motion Blur Reduction", "On").getAttribute("aria-disabled"), "false");
+  await segment("Motion Blur Reduction", "On").click();
+  await page.clock.runFor(300);
+  assert.equal(await segment("Motion Blur Reduction", "On").getAttribute("aria-pressed"), "true");
+  assert.equal(await prompt().count(), 0, "it can't hide the picture");
+});
+
+test("turning Adaptive-Sync back on switches Motion Blur Reduction off, says so, and relocks it", async () => {
+  await open();
+  await switchSync("Off");
+  await segment("Motion Blur Reduction", "On").click();
+  await page.clock.runFor(300);
+  await switchSync("Basic");
+  assert.equal(await segment("Motion Blur Reduction", "On").getAttribute("aria-disabled"), "true");
+  assert.equal(await segment("Motion Blur Reduction", "Off").getAttribute("aria-pressed"), "true");
+  await page.getByText("Motion Blur Reduction turned off with it").waitFor();
+});
+
+test("the Adaptive-Sync warning says Motion Blur Reduction will switch off when it is on", async () => {
+  await open();
+  await switchSync("Off");
+  await segment("Adaptive-Sync/VRR", "Basic").click();
+  const dialog = page.getByRole("alertdialog");
+  assert.doesNotMatch(await dialog.innerText(), /Motion Blur Reduction/, "nothing to switch off yet");
+  await dialog.getByRole("button", { name: "Not now" }).click();
+  await segment("Motion Blur Reduction", "On").click();
+  await page.clock.runFor(300);
+  await segment("Adaptive-Sync/VRR", "Basic").click();
+  assert.match(await dialog.innerText(), /Motion Blur Reduction will switch off too/);
+  await dialog.getByRole("button", { name: "Not now" }).click();
+});
+
+test("PBP/PIP locks AI Upscaling with a reason, and turning it off unlocks it", async () => {
+  await open();
+  assert.equal(await segment("AI Upscaling", "High").getAttribute("aria-disabled"), "false");
+  await page.getByRole("switch", { name: "Simulate PBP/PIP" }).click();
+  await page.clock.runFor(300);
+  assert.equal(await segment("AI Upscaling", "High").getAttribute("aria-disabled"), "true");
+  await lockOf("AI Upscaling").click();
+  assert.match(await row("AI Upscaling").locator(".pop").innerText(), /not available while PBP\/PIP is on/);
+  await page.getByRole("switch", { name: "Simulate PBP/PIP" }).click();
+  await page.clock.runFor(300);
+  assert.equal(await segment("AI Upscaling", "High").getAttribute("aria-disabled"), "false");
+});
+
+test("AI Upscaling and the color temperature presets change from the Picture section", async () => {
+  await open();
+  assert.equal(await segment("AI Upscaling", "Off").getAttribute("aria-pressed"), "true");
+  await segment("AI Upscaling", "High").click();
+  await page.clock.runFor(300);
+  assert.equal(await segment("AI Upscaling", "High").getAttribute("aria-pressed"), "true");
+  assert.equal(await prompt().count(), 0, "neither can hide the picture");
+  assert.equal(await segment("Color temperature", "Custom").getAttribute("aria-pressed"), "true");
+  await segment("Color temperature", "Warm").click();
+  await page.clock.runFor(300);
+  assert.equal(await segment("Color temperature", "Warm").getAttribute("aria-pressed"), "true");
+  assert.equal(await prompt().count(), 0);
 });
 
 test("a risky change asks 'Keep this change?' and Keep leaves it", async () => {
   await open();
-  await labsOn();
   await segment("Response Time", "Faster").click();
   await page.clock.runFor(300);
   await prompt().waitFor();
@@ -101,7 +193,6 @@ test("a risky change asks 'Keep this change?' and Keep leaves it", async () => {
 
 test("Revert puts the old value back at once", async () => {
   await open();
-  await labsOn();
   await segment("Response Time", "Faster").click();
   await page.clock.runFor(300);
   await prompt().getByRole("button", { name: "Revert" }).click();
@@ -113,7 +204,6 @@ test("Revert puts the old value back at once", async () => {
 
 test("no answer in 5 seconds puts the old value back", async () => {
   await open();
-  await labsOn();
   await segment("Response Time", "Faster").click();
   await page.clock.runFor(300);
   await prompt().waitFor();
@@ -127,7 +217,6 @@ test("no answer in 5 seconds puts the old value back", async () => {
 
 test("switching VRR sets expectations first, then offers a plain Undo, not Keep", async () => {
   await open();
-  await labsOn();
   await segment("Adaptive-Sync/VRR", "Off").click();
   const dialog = page.getByRole("alertdialog");
   await dialog.waitFor();
@@ -147,7 +236,6 @@ test("switching VRR sets expectations first, then offers a plain Undo, not Keep"
 
 test("changing the same control again keeps the first 'before'", async () => {
   await open();
-  await labsOn();
   await segment("Response Time", "Faster").click();
   await page.clock.runFor(300);
   await segment("Response Time", "Normal").click();
@@ -160,7 +248,6 @@ test("changing the same control again keeps the first 'before'", async () => {
 
 test("a slider drag asks once, when it ends, and Revert restores where it started", async () => {
   await open();
-  await labsOn();
   await slider("black-stabilizer").fill("90");
   await page.clock.runFor(1000);
   await prompt().waitFor();
@@ -183,7 +270,6 @@ test("a change that can't hide the picture gets an Undo toast, not a question", 
 
 test("the question is a real control: named, reachable by keyboard, big enough to hit", async () => {
   await open();
-  await labsOn();
   await segment("Response Time", "Faster").click();
   await page.clock.runFor(300);
   for (const name of ["Keep", "Revert"]) {
@@ -204,7 +290,6 @@ test("the question fits the tray's narrow window", async () => {
 
 test("the prompt shows in dark mode with readable text", async () => {
   await open({ colorScheme: "dark" });
-  await labsOn();
   await segment("Response Time", "Faster").click();
   await page.clock.runFor(300);
   await prompt().waitFor();
@@ -267,7 +352,6 @@ test("with no monitor found, the empty state offers the demo", async () => {
 
 test("an error stays on screen until dismissed, and the app stays usable", async () => {
   await open({ query: "?preview=fail-vrr" });
-  await labsOn();
   await segment("Adaptive-Sync/VRR", "Off").click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Switch" }).click();
   await page.clock.runFor(500);

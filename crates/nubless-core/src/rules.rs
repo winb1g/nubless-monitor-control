@@ -1,4 +1,4 @@
-//! Feature interlockfor s in all_states().filter(valid), reproducing LG Switch's (0u8..64).map(|b| FeatureState {ehaviour (see `docs/rules.md`
+//! Feature interlocks, reproducing LG Switch's behaviour (see `docs/rules.md`
 //! for the evidence). Pure functions over a [`FeatureState`] so every
 //! combination can be tested.
 //!
@@ -113,6 +113,8 @@ pub enum Notice {
         turns_off: Vec<Feature>,
     },
     AiUpscalingNeedsPbpOff,
+    /// Motion Blur Reduction only exists while Adaptive-Sync is Off.
+    MotionBlurNeedsAdaptiveSyncOff,
     WizardNeedsHdrOff,
     WizardNeedsPbpOff,
 }
@@ -151,7 +153,8 @@ impl Notice {
                 list(turns_off),
                 if turns_off.len() == 1 { "it" } else { "them" }
             ),
-            Notice::AiUpscalingNeedsPbpOff => "AI Upscaling is not available while PBP/PIP is on.".into(),
+            Notice::AiUpscalingNeedsPbpOff => AI_UPSCALING_NEEDS_PBP_OFF.into(),
+            Notice::MotionBlurNeedsAdaptiveSyncOff => MOTION_BLUR_NEEDS_SYNC_OFF.into(),
             Notice::WizardNeedsHdrOff => {
                 "The Personalized Picture Wizard needs HDR off. Turn HDR off in the system display settings, then try again.".into()
             }
@@ -330,6 +333,34 @@ pub fn availability(state: FeatureState) -> Availabilities {
     }
 }
 
+/// Shown wherever AI Upscaling is locked.
+pub const AI_UPSCALING_NEEDS_PBP_OFF: &str = "AI Upscaling is not available while PBP/PIP is on.";
+
+/// Shown wherever Motion Blur Reduction is locked, so the words never differ.
+pub const MOTION_BLUR_NEEDS_SYNC_OFF: &str =
+    "Motion Blur Reduction only works while Adaptive-Sync is off. Turn Adaptive-Sync off first.";
+
+/// Order for putting a snapshot back: a control that depends on another goes
+/// after it (Motion Blur Reduction needs Adaptive-Sync restored first).
+pub fn restore_rank(id: &str) -> u8 {
+    u8::from(id == "motion-blur")
+}
+
+/// Raw `0xF8` value for Adaptive-Sync Off.
+pub const ADAPTIVE_SYNC_OFF: u16 = 0;
+
+/// Motion Blur Reduction is available only while Adaptive-Sync is Off (seen
+/// 2026-10-30: with Basic the monitor ignores the write). `adaptive_sync` is the
+/// raw `0xF8` reading; an unknown reading does not lock it.
+pub fn motion_blur_availability(adaptive_sync: Option<u16>) -> Availability {
+    match adaptive_sync {
+        Some(v) if v != ADAPTIVE_SYNC_OFF => Availability::Unavailable {
+            reason: Notice::MotionBlurNeedsAdaptiveSyncOff,
+        },
+        _ => Availability::Available,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,6 +496,21 @@ mod tests {
             notice.unwrap().text(),
             "PBP/PIP is on, so AI Picture Mode turned off."
         );
+    }
+
+    #[test]
+    fn motion_blur_needs_adaptive_sync_off() {
+        for locked in [1u16, 2, 3] {
+            match motion_blur_availability(Some(locked)) {
+                Availability::Unavailable { reason } => assert_eq!(
+                    reason.text(),
+                    "Motion Blur Reduction only works while Adaptive-Sync is off. Turn Adaptive-Sync off first."
+                ),
+                a => panic!("Adaptive-Sync {locked}: {a:?}"),
+            }
+        }
+        assert_eq!(motion_blur_availability(Some(0)), Availability::Available);
+        assert_eq!(motion_blur_availability(None), Availability::Available);
     }
 
     #[test]

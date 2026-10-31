@@ -29,7 +29,7 @@ Safe, open-source, cross-platform control for the **LG UltraGear AI 27GM950B**, 
 nubless replaces the monitor's on-screen menu (OSD) with an app on your desktop. It talks to the monitor over DDC/CI, the same channel LG's own *LG Switch* uses, so you can change picture settings from a window, a tray popover, or a keyboard shortcut instead of from the nub. It is written in Rust, with a Tauri 2 and Svelte desktop app and a command-line tool.
 
 > [!NOTE]
-> **Early software.** Reads are verified on a real 27GM950B. Brightness, picture mode, AI Scene Optimization and AI Sound writes are verified against the monitor's own menu. Everything else is read-only or sits behind **Labs** until it has been checked on hardware. Not affiliated with LG Electronics.
+> **Early software.** Reads are verified on a real 27GM950B. Brightness, picture mode, AI Scene Optimization and AI Sound writes are verified against the monitor's own menu. Everything else is read-only until it has been checked on hardware (**Labs** exists for controls that are decoded but not yet confirmed; none are in it right now). Not affiliated with LG Electronics.
 
 ## Features
 
@@ -39,7 +39,7 @@ nubless replaces the monitor's on-screen menu (OSD) with an app on your desktop.
 
 - **Picture** – brightness, contrast, and all eight picture modes
 - **Smart features** – with LG's own interlocks, so incompatible features never collide
-- **Gaming and sound controls** – the unverified ones stay in Labs
+- **Gaming and sound controls** – Response Time, Adaptive-Sync, Motion Blur Reduction and volume are confirmed on hardware
 - **Tray popover** – quick brightness and picture mode from the system tray
 - **Keyboard shortcuts** – global and rebindable
 - **Start at login**, light and dark themes, and one-click updates
@@ -106,9 +106,9 @@ nubless --experimental set adaptive-sync basic   # asks "Keep this change?", rev
 
 | | Controls |
 |---|---|
-| ✅ **Read and write** | Brightness and contrast (within safe ranges), Black Stabilizer, Response Time, Adaptive-Sync/VRR, volume, mute, all 8 picture modes, AI Scene Optimization, AI Sound |
+| ✅ **Read and write** | Brightness and contrast (within safe ranges), Black Stabilizer, Response Time, Adaptive-Sync/VRR, Motion Blur Reduction (needs Adaptive-Sync Off), color temperature presets, AI Upscaling, volume, mute, all 8 picture modes, AI Scene Optimization, AI Sound |
 | 🧪 **Write behind `--experimental` / Labs** | none right now: the next control to become writable goes here until its hardware card passes |
-| 👁 **Read-only** | Color temperature (presets and the Manual slider are decoded), RGB gains, aspect ratio, motion blur (decoded), AI Upscaling (decoded), firmware level, usage hours, Dual-Mode state |
+| 👁 **Read-only** | The Manual color temperature slider (decoded, kelvin), RGB gains, aspect ratio, firmware level, usage hours, Dual-Mode state |
 | ⛔ **Blocked on purpose** | Input switching (it can cut the DDC link), and everything on the deny-list |
 
 <details>
@@ -121,7 +121,7 @@ nubless --experimental set adaptive-sync basic   # asks "Keep this change?", rev
 | Volume, Mute | `0x62`, `0x8D` | read ✔ · write ✔ (OSD-verified, fw 3.05, 2026-10-30) |
 | Picture mode (all 8 modes) | `0x15` | read ✔ · write ✔ (OSD-verified), through the AI interlock |
 | AI Scene Optimization, AI Sound | `0xA6` sub-commands 2, 6 | read ✔ · write ✔ (OSD-verified) |
-| Color temperature (`0x14` presets, `0x69` Manual), RGB gains, aspect ratio, motion blur (`0xFA`), AI Upscaling (`0xA6` sub 4) | various | read ✔ · not writable yet (writes untested) |
+| Manual color temperature slider (`0x69`), RGB gains, aspect ratio | various | read ✔ · not writable yet (writes untested) |
 | Input | `0x60` | read ✔ · **blocked**: switching input can cut the DDC link (dead end) |
 | Firmware level, usage hours, Dual-Mode state | `0xC9`, `0xC0`, `0xB1` | read-only |
 | Interlocks (AI features, PBP/PIP, picture modes that block AI) | — | done, from LG Switch's own logic ([`docs/rules.md`](docs/rules.md)) |

@@ -100,9 +100,21 @@ const OFF_ON: &[Choice] = &[
     },
 ];
 
+/// Motion Blur Reduction (0xFA). Reads 1 with it On and 2 with it Off or hidden.
+const MOTION_BLUR: &[Choice] = &[
+    Choice {
+        raw: 1,
+        label: "On",
+    },
+    Choice {
+        raw: 2,
+        label: "Off",
+    },
+];
+
 /// AI Upscaling. LG's enum has three values (1, 2, 4) and the OSD offers three
 /// options (Off, Low, High); a real unit read 1 while LG Switch showed Off, so
-/// 1 = Off, and LG's "Middle" (2) is the OSD's Low. Unconfirmed: read-only.
+/// 1 = Off, and LG's "Middle" (2) is the OSD's Low.
 const UPSCALING: &[Choice] = &[
     Choice {
         raw: 1,
@@ -115,6 +127,31 @@ const UPSCALING: &[Choice] = &[
     Choice {
         raw: 4,
         label: "High",
+    },
+];
+
+/// Color temperature presets on 0x14, each read with the OSD on that option
+/// (fw 3.05, 2026-10-30). Manual (0xFFDE) hands the choice to the 0x69 slider.
+const COLOR_PRESETS: &[Choice] = &[
+    Choice {
+        raw: 3,
+        label: "Warm",
+    },
+    Choice {
+        raw: 5,
+        label: "Medium",
+    },
+    Choice {
+        raw: 9,
+        label: "Cool",
+    },
+    Choice {
+        raw: 11,
+        label: "Custom",
+    },
+    Choice {
+        raw: 0xFFDE,
+        label: "Manual",
     },
 ];
 
@@ -190,9 +227,14 @@ pub const CONTROLS: &[Control] = &[
         note: "All eight tiles read on the wire while switching in LG Switch. Switching from nubless verified on the OSD, including Calibration1 through the AI interlock (fw 3.05, 2026-10-18). Non-AI modes need AI Scene Optimization off.",
     },
     Control {
-        id: "color-temperature", label: "Color temperature", vcp: 0x69, kind: ValueKind::Info,
+        id: "color-temperature", label: "Manual color temperature", vcp: 0x69, kind: ValueKind::Info,
         confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Read-only. Preset selector is 0x14: Warm 3, Medium 5, Cool 9, Custom 11, Manual 65502 (0xFFDE), each read with the OSD on that option (fw 3.05, 2026-10-30). In Manual, 0x69 is the slider in kelvin: W8 4000, 0 6500, C1 6800, C10 10000 (uneven steps; the other notches are not mapped). In the presets 0x69 reports the preset (Warm 6500, Medium 7500, Cool 9300). Writes untested.",
+        note: "Read-only. The presets live on 'color-preset' (0x14). In Manual, 0x69 is the slider in kelvin: W8 4000, 0 6500, C1 6800, C10 10000 (uneven steps; the other notches are not mapped). In the presets 0x69 reports the preset (Warm 6500, Medium 7500, Cool 9300). The slider's writes are untested (fw 3.05, 2026-10-30).",
+    },
+    Control {
+        id: "color-preset", label: "Color temperature", vcp: 0x14, kind: ValueKind::Choice { choices: COLOR_PRESETS },
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::None,
+        note: "Preset selector. Warm 3, Medium 5, Cool 9, Custom 11 and Manual 65502 (0xFFDE) were each written from nubless and matched the OSD; Manual came up on the C1 notch (0x69 read 6800). Custom unlocks the RGB sliders. The Manual slider itself is the read-only 0x69 control, so Undo and Reset put the preset back but not where the Manual slider was; the monitor keeps its own Manual position. Tested in Personalized Picture only; picture modes that lock color will ignore it (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "red-gain", label: "Red", vcp: 0x16, kind: range(0, 100),
@@ -215,9 +257,9 @@ pub const CONTROLS: &[Control] = &[
         note: "LG RATIO_VALUE; reads 1 (the OSD's Full Wide, by default). The capabilities string declares F5(01 02 03 04) and the OSD offers Full Wide, Original and Just Scan, so 2-4 are not named yet.",
     },
     Control {
-        id: "motion-blur", label: "Motion Blur Reduction", vcp: 0xFA, kind: ValueKind::Info,
-        confidence: Candidate, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Read-only. Reads 1 with Motion Blur Reduction On and 2 with it Off or hidden (Adaptive-Sync Basic/Extended clears it), so 0xFA cannot tell Off from unavailable; 0xF4 reads 7 while Adaptive-Sync is Off and 6 otherwise (probable availability flag). Which value writes Off (0 or 2) is untested. Only available while Adaptive-Sync is Off (docs/rules.md). Read with the OSD (fw 3.05, 2026-10-30).",
+        id: "motion-blur", label: "Motion Blur Reduction", vcp: 0xFA, kind: ValueKind::Choice { choices: MOTION_BLUR },
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::None,
+        note: "1 = On, 2 = Off; both written and matched on the OSD. Only available while Adaptive-Sync is Off: with Basic or Extended the monitor ignores the write and 0xFA reads 2, so the controller reports it as not applied (docs/rules.md). 0xF4 reads 7 while Adaptive-Sync is Off and 6 otherwise (probable availability flag). Whether 0 also writes Off is untested (fw 3.05, 2026-10-30).",
     },
     Control {
         id: "hdr", label: "HDR", vcp: 0xE2, kind: ValueKind::Info,
@@ -234,8 +276,8 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "ai-upscaling", label: "AI Upscaling", vcp: 0xA6,
         kind: ValueKind::SubCommand { sub: 4, choices: UPSCALING },
-        confidence: ReadConfirmed, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Sub-command 4 (eSoC_AIMODE_UPSCALLING). Read matched the OSD on all three options: Off 1, Low 2, High 4 (fw 3.05, 2026-10-30). Not written yet. Unavailable while PBP/PIP is on.",
+        confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::None,
+        note: "Sub-command 4 (eSoC_AIMODE_UPSCALLING). Off 1, Low 2 and High 4 were each written from nubless and matched the OSD (fw 3.05, 2026-10-30). Unavailable while PBP/PIP is on.",
     },
     Control {
         id: "ai-sound", label: "AI Sound", vcp: 0xA6,
@@ -403,10 +445,11 @@ mod evidence_tests {
         ("green-gain", Candidate),
         ("blue-gain", Candidate),
         ("aspect-ratio", Candidate),
-        ("motion-blur", Candidate),
+        ("motion-blur", WriteConfirmed),
         ("hdr", Candidate),
         ("ai-scene-optimization", WriteConfirmed),
-        ("ai-upscaling", ReadConfirmed),
+        ("ai-upscaling", WriteConfirmed),
+        ("color-preset", WriteConfirmed),
         ("ai-sound", WriteConfirmed),
         ("volume", WriteConfirmed),
         ("mute", WriteConfirmed),
