@@ -6,6 +6,7 @@
   import ShortcutsItem from "../components/ShortcutsItem.svelte";
   import Toggle from "../components/Toggle.svelte";
   import { theme, setTheme } from "../theme.svelte";
+  import { upd, setAutoUpdate } from "../updates.svelte";
 
   const s = $derived(ui.state);
 
@@ -40,6 +41,10 @@
 
     <Item title="Start at login" body="Open nubless quietly in the tray when you sign in, so your shortcuts are always ready.">
       <Toggle checked={autostart} pending={autostartBusy} label="Start at login" onchange={setAutostart} />
+    </Item>
+
+    <Item title="Check for updates automatically" body="Look for a new version when nubless starts and every few hours, and show a green dot on the tray icon when one is ready. Nothing installs until you say so.">
+      <Toggle checked={upd.auto} label="Check for updates automatically" onchange={(v) => setAutoUpdate(v).catch((e) => toast(String(e), "error"))} />
     </Item>
 
     <ShortcutsItem />

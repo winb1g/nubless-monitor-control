@@ -18,6 +18,10 @@ type Backend = {
   setHotkeys(enabled: boolean, bindings: Record<HotkeyAction, string>): Promise<HotkeysView>;
   getAutostart(): Promise<boolean>;
   setAutostart(on: boolean): Promise<boolean>;
+  getAutoUpdate(): Promise<boolean>;
+  setAutoUpdate(on: boolean): Promise<boolean>;
+  /** Green pip and "Update x available" in the tray; `null` clears them. */
+  setUpdateAvailable(version: string | null): Promise<void>;
   openMain(page?: string): Promise<void>;
   quit(): Promise<void>;
   onState(cb: (s: AppState) => void): void;
@@ -43,6 +47,9 @@ async function tauriBackend(): Promise<Backend> {
     setHotkeys: (enabled, bindings) => invoke("set_hotkeys", { enabled, bindings }),
     getAutostart: () => invoke("get_autostart"),
     setAutostart: (on) => invoke("set_autostart", { on }),
+    getAutoUpdate: () => invoke("get_auto_update"),
+    setAutoUpdate: (on) => invoke("set_auto_update", { on }),
+    setUpdateAvailable: (version) => invoke("set_update_available", { version }),
     openMain: (page) => invoke("open_main", { page: page ?? null }),
     quit: () => invoke("quit"),
     onState: (cb) => void listen<AppState>("state", (e) => cb(e.payload)),

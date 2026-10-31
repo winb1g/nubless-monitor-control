@@ -64,6 +64,7 @@ const FAIL_VRR = typeof location !== "undefined" && new URLSearchParams(location
 
 export function previewBackend() {
   let autostart = false;
+  let autoUpdate = true;
   let hotkeys = {
     enabled: true,
     bindings: Object.fromEntries(Object.entries(HOTKEY_LABELS).map(([a, [, k]]) => [a, k])) as Record<HotkeyAction, string>,
@@ -204,6 +205,9 @@ export function previewBackend() {
     },
     async getAutostart() { return autostart; },
     async setAutostart(on: boolean) { await wait(200); autostart = on; return autostart; },
+    async getAutoUpdate() { return autoUpdate; },
+    async setAutoUpdate(on: boolean) { await wait(200); autoUpdate = on; return autoUpdate; },
+    async setUpdateAvailable() {},
     async openMain() {},
     async quit() {},
     onState(cb: (s: AppState) => void) { listeners.push(cb); },

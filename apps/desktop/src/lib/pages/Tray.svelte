@@ -15,7 +15,7 @@
   const loading = $derived(!!ui.switching || !!s?.refreshing);
   const open = async (page?: string) => (await api()).openMain(page);
   const quit = async () => (await api()).quit();
-  const status = $derived(!s ? "Connecting…" : s.phase === "connected" ? (s.demo ? "Simulated" : "Connected") : "No monitor found");
+  const status = $derived(!s ? "Looking for your monitor…" : s.phase === "connected" ? (s.demo ? "Simulated" : "Connected") : "No monitor found");
 </script>
 
 <div class="pop" in:fly={popover}>

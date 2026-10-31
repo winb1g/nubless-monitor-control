@@ -5,8 +5,9 @@
   import { ui } from "../store.svelte";
   import { upd, checkForUpdates, installAndRestart } from "../updates.svelte";
 
+  // Opening the page checks too, unless automatic checks are off.
   $effect(() => {
-    if (upd.phase === "idle") checkForUpdates();
+    if (upd.phase === "idle" && upd.autoLoaded && upd.auto) checkForUpdates();
   });
 
   const busy = $derived(["checking", "downloading", "installing", "restarting"].includes(upd.phase));
@@ -22,7 +23,11 @@
   <section class="status" in:fly={rise}>
     {#key upd.phase}
       <div class="state" in:fly={rise}>
-        {#if upd.phase === "checking" || upd.phase === "idle"}
+        {#if upd.phase === "idle" && upd.autoLoaded && !upd.auto}
+          <h2>Automatic checks are off</h2>
+          <p class="muted">nubless won't look for updates on its own. Check whenever you like, or turn them back on in Settings.</p>
+          <button class="btn" onclick={checkForUpdates}>Check for updates</button>
+        {:else if upd.phase === "checking" || upd.phase === "idle"}
           <div class="hatch wide" aria-hidden="true"></div>
           <h2>Checking for updates…</h2>
           <p class="muted">This only takes a moment.</p>
