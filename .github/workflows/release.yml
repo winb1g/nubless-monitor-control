@@ -22,6 +22,8 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+      # The installers and latest.json take their version from the code, not the tag.
+      - run: node scripts/check-versions.mjs "${{ github.ref_name }}"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
