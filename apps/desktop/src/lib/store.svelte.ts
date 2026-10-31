@@ -28,6 +28,8 @@ export interface Keep {
   shown: string;
   /** What to put back if nobody answers. */
   before: number;
+  /** The monitor it was changed on (`MonitorCard.id`). */
+  monitor: string | null;
   /** Bumps when the same control is changed again, so the countdown restarts. */
   run: number;
 }
@@ -81,6 +83,11 @@ export function ask(d: Omit<Dialog, "resolve">): Promise<boolean> {
   });
 }
 
+/** The monitor this window shows, sent with every change (see `api.ts`). */
+function shown(): string | null {
+  return untrack(() => ui.state)?.monitors.find((m) => m.selected)?.id ?? null;
+}
+
 export async function init() {
   const b = await api();
   b.onState((s) => (ui.state = s));
@@ -107,7 +114,8 @@ async function guarded<T>(fn: () => Promise<T>): Promise<T | undefined> {
  * Change a control. `before` is the value at the start of the gesture (a whole
  * slider drag counts as one change), so "Undo" puts back exactly that.
  */
-export async function setControl(id: string, value: number, opts: { quiet?: boolean; before?: number | null } = {}) {
+export async function setControl(id: string, value: number, opts: { quiet?: boolean; before?: number | null; monitor?: string | null } = {}) {
+  const monitor = opts.monitor !== undefined ? opts.monitor : shown();
   // Switching VRR makes the whole monitor reconnect: say so first, instead of
   // springing a black screen on the user. Putting it back (quiet) is not asked twice.
   if (id === BLANKS_SCREEN && !opts.quiet) {
@@ -125,7 +133,7 @@ export async function setControl(id: string, value: number, opts: { quiet?: bool
   const name = untrack(() => ui.state)?.controls.find((c) => c.id === id)?.label ?? "Setting";
   // Most writes answer at once. If this one does not, say what we are waiting for.
   const slow = setTimeout(() => (ui.waiting = name), 600);
-  const out = await guarded(async () => (await api()).setControl(id, value)).finally(() => {
+  const out = await guarded(async () => (await api()).setControl(id, value, monitor)).finally(() => {
     clearTimeout(slow);
     ui.waiting = null;
   });
@@ -139,11 +147,11 @@ export async function setControl(id: string, value: number, opts: { quiet?: bool
   // no-op because a throttled one already sent the same value.
   // VRR can't strand you on a bad picture, so it gets the warning above and a plain Undo.
   if (control?.confirm && id !== BLANKS_SCREEN) {
-    askToKeep(id, label, control.display ?? String(value), before);
+    askToKeep(id, label, control.display ?? String(value), before, monitor);
     return;
   }
   toast(out.toast ?? `${label} updated`, "success", async () => {
-    await setControl(id, before, { quiet: true });
+    await setControl(id, before, { quiet: true, monitor });
     toast("Undone", "info");
   });
 }
@@ -156,9 +164,10 @@ let keepRun = 0;
  * the same control again keeps the original `before`, so a run of tweaks is one
  * change that is kept or put back as a whole.
  */
-export function askToKeep(id: string, label: string, shown: string, before: number) {
+export function askToKeep(id: string, label: string, shown: string, before: number, monitor: string | null = null) {
   const prior = untrack(() => ui.keep);
-  ui.keep = { id, label, shown, before: prior?.id === id ? prior.before : before, run: ++keepRun };
+  const same = prior?.id === id && prior.monitor === monitor;
+  ui.keep = { id, label, shown, before: same ? prior.before : before, monitor, run: ++keepRun };
   clearTimeout(keepTimer);
   keepTimer = setTimeout(() => void revertChange(), KEEP_MS);
 }
@@ -173,7 +182,7 @@ export async function revertChange() {
   const k = untrack(() => ui.keep);
   if (!k) return;
   keepChange();
-  const out = await guarded(async () => (await api()).revertControl(k.id, k.before));
+  const out = await guarded(async () => (await api()).revertControl(k.id, k.before, k.monitor));
   if (out) {
     ui.state = out.state;
     toast(`${k.label} put back`, "info");
@@ -181,7 +190,7 @@ export async function revertChange() {
 }
 
 export async function undo() {
-  const out = await guarded(async () => (await api()).undo());
+  const out = await guarded(async () => (await api()).undo(shown()));
   if (out) {
     ui.state = out.state;
     toast("Undone", "info");
@@ -198,15 +207,16 @@ const featureTitles: Record<Feature, string> = {
 export async function toggleFeature(feature: Feature, on: boolean) {
   if (ui.pendingFeature) return;
   const b = await api();
+  const monitor = shown();
   ui.pendingFeature = { id: feature, on };
   try {
-    let out: FeatureOutcome | undefined = await guarded(() => b.toggleFeature(feature, on, false));
+    let out: FeatureOutcome | undefined = await guarded(() => b.toggleFeature(feature, on, false, monitor));
     if (out?.kind === "confirm") {
       ui.pendingFeature = null;
       const ok = await ask({ title: featureTitles[feature], body: out.question, confirm: "Turn on", cancel: "Not now" });
       if (!ok) return;
       ui.pendingFeature = { id: feature, on };
-      out = await guarded(() => b.toggleFeature(feature, on, true));
+      out = await guarded(() => b.toggleFeature(feature, on, true, monitor));
     }
     handleFeature(out);
   } finally {
@@ -218,15 +228,16 @@ export async function toggleFeature(feature: Feature, on: boolean) {
 export async function pickPictureMode(label: string) {
   if (ui.switching) return;
   const b = await api();
+  const monitor = shown();
   ui.switching = label;
   try {
-    let out: FeatureOutcome | undefined = await guarded(() => b.pickPictureMode(label, false));
+    let out: FeatureOutcome | undefined = await guarded(() => b.pickPictureMode(label, false, monitor));
     if (out?.kind === "confirm") {
       ui.switching = null;
       const ok = await ask({ title: `Switch to ${label}?`, body: out.question, confirm: "Switch", cancel: "Not now" });
       if (!ok) return;
       ui.switching = label;
-      out = await guarded(() => b.pickPictureMode(label, true));
+      out = await guarded(() => b.pickPictureMode(label, true, monitor));
     }
     handleFeature(out);
   } finally {
@@ -258,7 +269,8 @@ export async function resetOriginal() {
   });
   if (!ok) return;
   ui.busy = true;
-  const out = await guarded(async () => (await api()).resetOriginal());
+  const monitor = shown();
+  const out = await guarded(async () => (await api()).resetOriginal(monitor));
   ui.busy = false;
   if (out) {
     ui.state = out.state;
@@ -269,6 +281,26 @@ export async function resetOriginal() {
 export async function setLabs(on: boolean) {
   const s = await guarded(async () => (await api()).setLabs(on));
   if (s) ui.state = s;
+}
+
+/**
+ * Control another monitor. A change still waiting for "Keep" is put back
+ * first (on the monitor it was made on): leaving without an answer is not a yes.
+ */
+export async function selectMonitor(id: string) {
+  const s = untrack(() => ui.state);
+  if (!s || s.monitors.find((m) => m.selected)?.id === id) return;
+  await revertChange();
+  const next = await guarded(async () => (await api()).selectMonitor(id));
+  if (next) ui.state = next;
+}
+
+export async function setLinked(on: boolean) {
+  const s = await guarded(async () => (await api()).setLinked(on));
+  if (s) {
+    ui.state = s;
+    toast(on ? "Changes now go to every monitor" : "Changes now go to the selected monitor only", "info");
+  }
 }
 
 export async function rescan() {

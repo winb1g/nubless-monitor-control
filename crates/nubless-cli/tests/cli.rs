@@ -23,10 +23,15 @@ enum Stdin {
 }
 
 fn nubless(args: &[&str], stdin: Stdin) -> Run {
+    nubless_with(args, stdin, &[])
+}
+
+fn nubless_with(args: &[&str], stdin: Stdin, env: &[(&str, &str)]) -> Run {
     let home = std::env::temp_dir().join(format!("nubless-cli-test-{}", std::process::id()));
     let mut child = Command::new(env!("CARGO_BIN_EXE_nubless"))
         .args(args)
         .env("NUBLESS_HOME", &home)
+        .envs(env.iter().copied())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -334,4 +339,64 @@ fn undo_with_nothing_to_undo_is_an_error_not_a_crash() {
 fn the_capabilities_string_is_printed_for_bug_reports() {
     let r = mock(&["caps"]);
     assert!(r.ok && r.out.starts_with('('), "{}", r.out);
+}
+
+/// `--mock` with three simulated monitors, like a desk of identical 27GM950Bs.
+fn three(args: &[&str], stdin: Stdin) -> Run {
+    let mut all = vec!["--mock"];
+    all.extend_from_slice(args);
+    nubless_with(&all, stdin, &[("NUBLESS_MOCK_MONITORS", "3")])
+}
+
+#[test]
+fn several_monitors_are_listed_and_one_must_be_picked() {
+    let list = three(&["list"], Stdin::Closed);
+    assert!(list.ok);
+    for n in ["#0", "#1", "#2"] {
+        assert!(list.out.contains(n), "missing {n}:\n{}", list.out);
+    }
+    let r = three(&["get", "brightness"], Stdin::Closed);
+    assert!(
+        !r.ok && r.err.contains("--monitor") && r.err.contains("--all"),
+        "{}",
+        r.err
+    );
+    let one = three(&["--monitor", "2", "get", "brightness"], Stdin::Closed);
+    assert!(one.ok && !one.out.contains("=="), "{}", one.out);
+    assert!(!three(&["--monitor", "3", "get"], Stdin::Closed).ok);
+}
+
+#[test]
+fn all_changes_every_monitor() {
+    let r = three(&["--all", "set", "brightness", "40"], Stdin::Closed);
+    assert!(r.ok, "{}", r.err);
+    assert_eq!(
+        r.out.matches("Brightness: 80 -> 40").count(),
+        3,
+        "{}",
+        r.out
+    );
+    for n in ["#0", "#1", "#2"] {
+        assert!(r.out.contains(n), "{}", r.out);
+    }
+    let get = three(&["--all", "get", "brightness"], Stdin::Closed);
+    assert_eq!(get.out.matches("== #").count(), 3, "{}", get.out);
+}
+
+#[test]
+fn all_asks_once_and_reverts_every_monitor() {
+    let r = three(
+        &["--experimental", "--all", "set", "response-time", "faster"],
+        Stdin::Closed,
+    );
+    assert!(r.ok, "{}", r.err);
+    assert_eq!(r.out.matches("Keep this change?").count(), 1, "{}", r.out);
+    assert_eq!(r.out.matches("Reverted to").count(), 3, "{}", r.out);
+}
+
+#[test]
+fn one_display_commands_refuse_all() {
+    let r = three(&["--all", "caps"], Stdin::Closed);
+    assert!(!r.ok && r.err.contains("--monitor"), "{}", r.err);
+    assert!(!three(&["--all", "--monitor", "1", "get"], Stdin::Closed).ok);
 }

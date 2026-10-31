@@ -19,6 +19,7 @@ pub mod caps;
 pub mod controller;
 pub mod journal;
 pub mod mock;
+pub mod monitors;
 pub mod paths;
 pub mod profile;
 pub mod profiles;

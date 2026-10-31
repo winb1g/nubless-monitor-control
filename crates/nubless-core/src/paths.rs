@@ -1,5 +1,7 @@
 //! Where nubless keeps its files. Shared by the CLI and the desktop app so both
-//! see the same original-settings baseline.
+//! see the same original-settings baseline. Each monitor has its own folder
+//! (see [`crate::monitors`]), so with two or more monitors connected their
+//! original settings and undo histories never mix.
 
 use std::path::PathBuf;
 
@@ -22,10 +24,17 @@ pub fn state_dir() -> PathBuf {
     base.unwrap_or_else(|| PathBuf::from(".")).join("nubless")
 }
 
+/// The single-monitor baseline of earlier versions; see [`crate::monitors::adopt_single_monitor_files`].
 pub fn baseline_file() -> PathBuf {
     state_dir().join("baseline.json")
 }
 
+/// The single-monitor journal of earlier versions; see [`crate::monitors::adopt_single_monitor_files`].
 pub fn journal_file() -> PathBuf {
     state_dir().join("journal.jsonl")
+}
+
+/// Where each monitor's own folder lives (see [`crate::monitors`]).
+pub fn monitors_dir() -> PathBuf {
+    state_dir().join("monitors")
 }

@@ -42,6 +42,7 @@ nubless replaces the monitor's on-screen menu (OSD) with an app on your desktop.
 - **Gaming and sound controls** – Response Time, Adaptive-Sync, Motion Blur Reduction and volume are confirmed on hardware
 - **Tray popover** – quick brightness and picture mode from the system tray
 - **Keyboard shortcuts** – global and rebindable
+- **Two or more monitors** – each keeps its own settings, original settings and undo; pick one, or link them to change all together
 - **Start at login**, light and dark themes, and one-click updates
 - **Labs** – opt in to controls that are decoded but not yet confirmed on hardware
 - **CLI** – script everything, with undo and a simulated monitor for testing
@@ -93,6 +94,8 @@ cargo build --release
 
 ```bash
 nubless list                          # which displays are supported (read-only)
+nubless --monitor 1 get               # with several monitors: pick one by its number in `list`
+nubless --all set brightness 60       # ...or change every supported monitor at once
 nubless get                           # read every control
 nubless set brightness 60             # change one (read back, journaled)
 nubless undo                          # undo the last change
@@ -101,6 +104,18 @@ nubless controls                      # what each control is, how sure we are, a
 nubless --mock get                    # a simulated 27GM950B, no hardware needed
 nubless --experimental set adaptive-sync basic   # asks "Keep this change?", reverts in 5 s
 ```
+
+## Two or more monitors
+
+nubless connects to every supported monitor it finds, even several of the same model.
+
+- **Each monitor is its own.** It has its own original settings and undo history, kept by its EDID serial number (or the port it's plugged into, when it reports no serial). "Reset to my original settings" and Undo only touch the monitor they're for.
+- **Monitors carry the names your OS gives them**, such as "LG ULTRAGEAR+ (2)" on macOS, with the model and port (`DP-1`, `DISPLAY2`) underneath.
+- **Pick a monitor** from the tabs at the top of the window or the numbered buttons in the tray popover. nubless remembers your pick.
+- **Change all together** links them: every slider, picture mode, shortcut, Undo and Reset goes to every connected monitor. A monitor that refuses a change is named in the message and doesn't stop the others.
+- **Losing a monitor isn't fatal.** When switching VRR makes a monitor drop off and come back, nubless finds that same monitor again and leaves the others alone.
+
+Try it without the hardware: `npx tauri dev -- -- --demo=3` starts three simulated monitors, and `NUBLESS_MOCK_MONITORS=3 nubless --mock --all get` does the same for the CLI.
 
 ## What works today
 

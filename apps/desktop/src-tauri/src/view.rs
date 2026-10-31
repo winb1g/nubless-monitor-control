@@ -8,9 +8,13 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MonitorCard {
-    pub id: usize,
+    /// Stable across scans and reconnects (the monitor's settings folder name).
+    pub id: String,
+    /// The name the OS shows for it ("LG ULTRAGEAR+ (2)").
     pub name: String,
     pub detail: String,
+    /// Where it is plugged in, as the OS names it ("DP-1", "DISPLAY2"), when known.
+    pub port: Option<String>,
     pub supported: bool,
     pub selected: bool,
     pub demo: bool,
@@ -78,6 +82,8 @@ pub struct AppState {
     pub features: FeaturesView,
     pub baseline: BaselineView,
     pub labs: bool,
+    /// Changes go to every connected monitor ("Change all monitors together").
+    pub linked: bool,
     pub lg_switch_running: bool,
     pub error: Option<String>,
     pub version: &'static str,

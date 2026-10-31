@@ -2,7 +2,7 @@
   import { rise, hint } from "../motion";
   import { fly } from "svelte/transition";
   import { FlaskConical, Search } from "@lucide/svelte";
-  import { ui, toggleFeature, simulatePbp, rescan, useDemo, setControl } from "../store.svelte";
+  import { ui, toggleFeature, simulatePbp, rescan, useDemo, setControl, selectMonitor, setLinked } from "../store.svelte";
   import type { ControlView, Feature, FeatureState } from "../types";
   import Section from "../components/Section.svelte";
   import Hint from "../components/Hint.svelte";
@@ -29,6 +29,8 @@
   /** A picture-mode switch is in flight or its values are being re-read. */
   const loading = $derived(!!ui.switching || !!s?.refreshing);
   const labsCount = $derived(s?.controls.filter((c) => c.unlock === "labs").length ?? 0);
+  /** Monitors nubless can control; with two or more they can be linked. */
+  const supportedCount = $derived(s?.monitors.filter((m) => m.supported).length ?? 0);
 
   /** Why a smart feature can't be turned on right now, if it can't. */
   function featureLock(id: Feature, on: boolean): { reason: string; unlock: "labs" | null } | null {
@@ -50,13 +52,33 @@
       <div class="skeleton tab-skel"></div>
     {:else}
       {#each s.monitors as m (m.id)}
-        <button class="mon" class:selected={m.selected} class:unsupported={!m.supported} aria-pressed={m.selected} in:fly={rise}>
+        <button
+          class="mon"
+          class:selected={m.selected}
+          class:unsupported={!m.supported}
+          class:linked={s.linked && m.supported && !m.selected}
+          aria-pressed={m.selected}
+          disabled={!m.supported}
+          title={[m.name, m.port && `Connected to ${m.port}`, m.detail].filter(Boolean).join(" · ")}
+          onclick={() => selectMonitor(m.id)}
+          in:fly={rise}
+        >
           <span class="name">{m.name}</span>
-          <span class="eyebrow">{m.demo ? "Simulated" : m.supported ? "Supported" : "Not supported yet"}</span>
+          <!-- The OS's name for it is the title; what it is and where it's plugged in, below. -->
+          <span class="eyebrow">{m.supported ? [m.demo ? "Simulated" : s.model, m.port].filter(Boolean).join(" · ") : "Not supported yet"}</span>
         </button>
       {/each}
       {#if s.phase !== "empty"}
         <button class="btn" onclick={rescan} disabled={ui.busy}>{ui.busy ? "Looking…" : "Scan again"}</button>
+      {/if}
+      {#if supportedCount > 1}
+        <div class="linkall" in:fly={rise}>
+          <div class="ltext">
+            <b>Change all together</b>
+            <span class="muted small">{s.linked ? `Every change goes to all ${supportedCount} monitors` : "Changes go to the selected monitor"}</span>
+          </div>
+          <Toggle checked={s.linked} label="Change all monitors together" onchange={setLinked} />
+        </div>
       {/if}
     {/if}
   </div>
@@ -251,6 +273,22 @@
   }
   .mon.unsupported {
     border-style: dashed;
+    cursor: default;
+  }
+  .mon.linked {
+    background: var(--wash);
+  }
+  .linkall {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-left: auto;
+    padding: 6px 0 6px var(--space-4);
+    border-left: 1px solid var(--rule);
+  }
+  .linkall .ltext {
+    display: flex;
+    flex-direction: column;
   }
   .name {
     font-weight: 800;
