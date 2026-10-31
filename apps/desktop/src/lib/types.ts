@@ -1,9 +1,13 @@
 export type Feature = "ai-scene-optimization" | "ai-picture-mode" | "my-display-preset";
 
 export interface MonitorCard {
-  id: number;
+  /** Stable across scans and reconnects (the monitor's settings folder). */
+  id: string;
+  /** The name the OS shows for it ("LG ULTRAGEAR+ (2)"). */
   name: string;
   detail: string;
+  /** Where it is plugged in, as the OS names it ("DP-1", "DISPLAY2"). */
+  port: string | null;
   supported: boolean;
   selected: boolean;
   demo: boolean;
@@ -53,6 +57,8 @@ export interface AppState {
   };
   baseline: { saved: boolean; values: number; just_saved: boolean; error: string | null; saved_in: string | null };
   labs: boolean;
+  /** Changes go to every connected monitor ("Change all together"). */
+  linked: boolean;
   lg_switch_running: boolean;
   error: string | null;
   version: string;

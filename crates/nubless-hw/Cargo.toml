@@ -12,3 +12,9 @@ nubless-core.workspace = true
 # NVAPI is left out on purpose: it exposes the same monitor a second time over raw
 # I2C, and two paths to one monitor defeat the one-message-at-a-time pacing.
 ddc-hi = { version = "0.4.1", default-features = false, features = ["ddc-winapi", "ddc-i2c", "ddc-macos"] }
+
+# Windows: dxva2 gives no EDID, so the monitor's identity (device path, EDID
+# serial and name) is read from the OS alongside ddc-hi's handles.
+[target.'cfg(windows)'.dependencies]
+ddc-winapi = "0.2.2"
+winapi = { version = "0.3.9", features = ["minwindef", "windef", "winerror", "wingdi", "winreg", "winuser", "physicalmonitorenumerationapi"] }

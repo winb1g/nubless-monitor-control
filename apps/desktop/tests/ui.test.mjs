@@ -367,3 +367,68 @@ test("an error stays on screen until dismissed, and the app stays usable", async
   await page.clock.runFor(500);
   await error.waitFor({ state: "hidden" });
 });
+
+const tab = (n) => page.getByRole("button", { name: new RegExp(`^LG ULTRAGEAR\\+ \\(${n}\\)`) });
+
+test("with three monitors, each tab selects its own monitor and values", async () => {
+  await open({ query: "?monitors=3" });
+  await tab(2).click();
+  await page.clock.runFor(200);
+  assert.equal(await tab(2).getAttribute("aria-pressed"), "true");
+  assert.equal(await tab(1).getAttribute("aria-pressed"), "false");
+  await slider("brightness").fill("40");
+  await slider("brightness").dispatchEvent("change");
+  await page.clock.runFor(1000);
+  await tab(1).click();
+  await page.clock.runFor(200);
+  assert.equal(await slider("brightness").inputValue(), "80", "monitor 1 kept its own brightness");
+  await tab(2).click();
+  await page.clock.runFor(200);
+  assert.equal(await slider("brightness").inputValue(), "40");
+});
+
+test("Change all together sends a change to every monitor", async () => {
+  await open({ query: "?monitors=3" });
+  await page.getByRole("switch", { name: "Change all monitors together" }).click();
+  await page.clock.runFor(200);
+  await page.getByText("Every change goes to all 3 monitors").waitFor();
+  await slider("brightness").fill("30");
+  await slider("brightness").dispatchEvent("change");
+  await page.clock.runFor(1000);
+  for (const n of [2, 3]) {
+    await tab(n).click();
+    await page.clock.runFor(200);
+    assert.equal(await slider("brightness").inputValue(), "30", `monitor ${n}`);
+  }
+});
+
+test("one monitor shows no link switch, and the tray offers a picker only with several", async () => {
+  await open();
+  assert.equal(await page.getByRole("switch", { name: "Change all monitors together" }).count(), 0);
+  await ctx.close();
+  await open({ hash: "#/tray", query: "?monitors=2", size: { width: 340, height: 560 } });
+  const pick = page.getByRole("group", { name: "Monitor" });
+  const second = pick.getByRole("button", { name: "LG ULTRAGEAR+ (2)" });
+  await second.click();
+  await page.clock.runFor(200);
+  assert.equal(await second.getAttribute("aria-pressed"), "true");
+});
+
+test("each monitor shows the name the OS gives it, with its model and port", async () => {
+  await open({ query: "?monitors=2" });
+  await tab(2).waitFor();
+  assert.match(await tab(2).innerText(), /^LG ULTRAGEAR\+ \(2\)\n.*· DP-2$/i);
+  assert.match(await tab(2).getAttribute("title"), /Connected to DP-2/);
+});
+
+test("Revert after switching monitors puts back the monitor the change was made on", async () => {
+  await open({ query: "?monitors=2" });
+  await segment("Response Time", "Faster").click();
+  await prompt().waitFor();
+  await tab(2).click();
+  await page.clock.runFor(500);
+  assert.equal(await segment("Response Time", "Fast").getAttribute("aria-pressed"), "true", "monitor 2 never changed");
+  await tab(1).click();
+  await page.clock.runFor(500);
+  assert.equal(await segment("Response Time", "Fast").getAttribute("aria-pressed"), "true", "monitor 1 was put back");
+});

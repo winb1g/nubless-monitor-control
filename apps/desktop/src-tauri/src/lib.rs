@@ -1,5 +1,6 @@
 mod hotkeys;
 mod platform;
+mod screens;
 mod view;
 mod worker;
 
@@ -68,13 +69,38 @@ async fn set_labs(app: AppHandle, b: State<'_, Backend>, on: bool) -> Result<App
 }
 
 #[tauri::command]
-async fn set_control(
+async fn select_monitor(
     app: AppHandle,
     b: State<'_, Backend>,
     id: String,
+) -> Result<AppState, String> {
+    let s = ask(&b, |r| Req::Select(id, r)).await??;
+    broadcast(&app, &s);
+    Ok(s)
+}
+
+#[tauri::command]
+async fn set_linked(app: AppHandle, b: State<'_, Backend>, on: bool) -> Result<AppState, String> {
+    let s = ask(&b, |r| Req::SetLinked(on, r)).await?;
+    broadcast(&app, &s);
+    Ok(s)
+}
+
+#[tauri::command]
+async fn set_control(
+    app: AppHandle,
+    b: State<'_, Backend>,
+    monitor: Option<String>,
+    id: String,
     value: u16,
 ) -> Result<Outcome, String> {
-    let out = ask(&b, |reply| Req::Set { id, value, reply }).await??;
+    let out = ask(&b, |reply| Req::Set {
+        monitor,
+        id,
+        value,
+        reply,
+    })
+    .await??;
     broadcast(&app, &out.state);
     Ok(out)
 }
@@ -83,11 +109,13 @@ async fn set_control(
 async fn toggle_feature(
     app: AppHandle,
     b: State<'_, Backend>,
+    monitor: Option<String>,
     feature: Feature,
     on: bool,
     confirmed: bool,
 ) -> Result<FeatureOutcome, String> {
     let out = ask(&b, |reply| Req::Feature {
+        monitor,
         feature,
         on,
         confirmed,
@@ -117,10 +145,12 @@ async fn simulate_pbp(
 async fn pick_picture_mode(
     app: AppHandle,
     b: State<'_, Backend>,
+    monitor: Option<String>,
     label: String,
     confirmed: bool,
 ) -> Result<FeatureOutcome, String> {
     let out = ask(&b, |reply| Req::PictureMode {
+        monitor,
         label,
         confirmed,
         reply,
@@ -133,8 +163,12 @@ async fn pick_picture_mode(
 }
 
 #[tauri::command]
-async fn undo(app: AppHandle, b: State<'_, Backend>) -> Result<Outcome, String> {
-    let out = ask(&b, Req::Undo).await??;
+async fn undo(
+    app: AppHandle,
+    b: State<'_, Backend>,
+    monitor: Option<String>,
+) -> Result<Outcome, String> {
+    let out = ask(&b, |reply| Req::Undo { monitor, reply }).await??;
     broadcast(&app, &out.state);
     Ok(out)
 }
@@ -143,17 +177,28 @@ async fn undo(app: AppHandle, b: State<'_, Backend>) -> Result<Outcome, String> 
 async fn revert_control(
     app: AppHandle,
     b: State<'_, Backend>,
+    monitor: Option<String>,
     id: String,
     value: u16,
 ) -> Result<Outcome, String> {
-    let out = ask(&b, |reply| Req::Revert { id, value, reply }).await??;
+    let out = ask(&b, |reply| Req::Revert {
+        monitor,
+        id,
+        value,
+        reply,
+    })
+    .await??;
     broadcast(&app, &out.state);
     Ok(out)
 }
 
 #[tauri::command]
-async fn reset_original(app: AppHandle, b: State<'_, Backend>) -> Result<Outcome, String> {
-    let out = ask(&b, Req::ResetOriginal).await??;
+async fn reset_original(
+    app: AppHandle,
+    b: State<'_, Backend>,
+    monitor: Option<String>,
+) -> Result<Outcome, String> {
+    let out = ask(&b, |reply| Req::ResetOriginal { monitor, reply }).await??;
     broadcast(&app, &out.state);
     Ok(out)
 }
@@ -385,8 +430,10 @@ fn toggle_popover(app: &AppHandle, rect: Rect) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let demo =
-        std::env::args().any(|a| a == "--demo") || std::env::var_os("NUBLESS_DEMO").is_some();
+    let demo = demo_monitors(
+        std::env::args(),
+        std::env::var("NUBLESS_DEMO").ok().as_deref(),
+    );
     let hidden = std::env::args().any(|a| a == HIDDEN_ARG);
     // The monitor thread starts before Tauri, so it reaches the app through this cell.
     static APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
@@ -396,6 +443,23 @@ pub fn run() {
             if let Some(app) = APP.get() {
                 broadcast(app, state);
             }
+        }),
+        // AppKit only answers on the main thread; never wait on it for long.
+        Box::new(|| {
+            let Some(app) = APP.get() else {
+                return vec![];
+            };
+            let (tx, rx) = channel();
+            if app
+                .run_on_main_thread(move || {
+                    let _ = tx.send(screens::names());
+                })
+                .is_err()
+            {
+                return vec![];
+            }
+            rx.recv_timeout(std::time::Duration::from_secs(1))
+                .unwrap_or_default()
         }),
     );
 
@@ -430,6 +494,8 @@ pub fn run() {
             rescan,
             use_demo,
             set_labs,
+            select_monitor,
+            set_linked,
             set_control,
             toggle_feature,
             simulate_pbp,
@@ -523,9 +589,34 @@ pub fn run() {
         .expect("error while running nubless");
 }
 
+/// How many simulated monitors to start with: `--demo` (or `NUBLESS_DEMO` set)
+/// is one, `--demo=3` (or `NUBLESS_DEMO=3`) is three; 0 means real hardware.
+fn demo_monitors(args: impl IntoIterator<Item = String>, env: Option<&str>) -> usize {
+    let count = |v: &str| v.parse::<usize>().map_or(1, |n| n.clamp(1, 6));
+    args.into_iter()
+        .find_map(|a| match a.strip_prefix("--demo") {
+            Some("") => Some(1),
+            Some(v) => v.strip_prefix('=').map(count),
+            None => None,
+        })
+        .or(env.map(count))
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{popover_position, with_pip};
+    use super::{demo_monitors, popover_position, with_pip};
+
+    #[test]
+    fn demo_takes_an_optional_monitor_count() {
+        let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(demo_monitors(args(&["nubless"]), None), 0);
+        assert_eq!(demo_monitors(args(&["nubless", "--demo"]), None), 1);
+        assert_eq!(demo_monitors(args(&["nubless", "--demo=3"]), None), 3);
+        assert_eq!(demo_monitors(args(&["nubless"]), Some("1")), 1);
+        assert_eq!(demo_monitors(args(&["nubless"]), Some("yes")), 1);
+        assert_eq!(demo_monitors(args(&["nubless", "--demo-x"]), None), 0);
+    }
 
     #[test]
     fn the_pip_is_green_in_the_corner_and_leaves_the_rest_alone() {

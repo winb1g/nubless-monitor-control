@@ -84,8 +84,18 @@ export function previewBackend() {
       }),
     };
   };
-  const values: Record<string, number> = { "ai-sound": 1, brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "motion-blur": 2, "ai-upscaling": 1, "color-preset": 11, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
-  const original = { ...values };
+  const seed: Record<string, number> = { "ai-sound": 1, brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "motion-blur": 2, "ai-upscaling": 1, "color-preset": 11, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
+  const original = { ...seed };
+  // `?monitors=3` previews a desk of identical monitors, each with its own values.
+  const count = Math.min(Math.max(Number(new URLSearchParams(location.search).get("monitors")) || 1, 1), 6);
+  const desk = Array.from({ length: count }, () => ({ ...seed }));
+  let selected = 0;
+  let linked = false;
+  let values = desk[0];
+  /** The monitor a request names (`demo-2`), else the selected one. */
+  const aimed = (monitor: string | null) => (monitor ? desk[Number(monitor.replace("demo-", "")) - 1] : values);
+  /** Where a change goes: every monitor when linked, else the one it was made on. */
+  const targets = (monitor: string | null = null) => (linked ? desk : [aimed(monitor)]);
   let labs = false;
   // `?preview=empty` starts with no monitor found, to design the empty state.
   let connected = new URLSearchParams(location.search).get("preview") !== "empty";
@@ -100,7 +110,10 @@ export function previewBackend() {
   const state = (): AppState => ({
     phase: connected ? "connected" : "empty",
     demo: true,
-    monitors: connected ? [{ id: 0, name: "27GM950B (demo)", detail: "Browser preview", supported: true, selected: true, demo: true }] : [],
+    // Named the way macOS names identical monitors in System Settings.
+    monitors: connected
+      ? desk.map((_, i) => ({ id: `demo-${i + 1}`, name: count > 1 ? `LG ULTRAGEAR+ (${i + 1})` : "27GM950B (demo)", detail: "Browser preview", port: count > 1 ? `DP-${i + 1}` : null, supported: true, selected: i === selected, demo: true }))
+      : [],
     model: "27GM950B",
     controls: connected ? controls(values, features.pbp) : [],
     features: {
@@ -112,6 +125,7 @@ export function previewBackend() {
     },
     baseline: { saved: true, values: Object.keys(original).length, just_saved: false, error: null, saved_in: "Personalized Picture" },
     labs,
+    linked,
     lg_switch_running: false,
     error: null,
     version: "0.1.1",
@@ -124,7 +138,16 @@ export function previewBackend() {
     async rescan() { await wait(900); connected = true; emit(); return state(); },
     async useDemo() { connected = true; emit(); return state(); },
     async setLabs(on: boolean) { labs = on; emit(); return state(); },
-    async setControl(id: string, value: number): Promise<Outcome> {
+    async selectMonitor(id: string) {
+      const i = Number(id.replace("demo-", "")) - 1;
+      if (!desk[i]) throw "That display isn't connected. Try Scan again.";
+      selected = i;
+      values = desk[i];
+      emit();
+      return state();
+    },
+    async setLinked(on: boolean) { linked = on; emit(); return state(); },
+    async setControl(id: string, value: number, monitor: string | null = null): Promise<Outcome> {
       await wait(120);
       // `?preview=fail-vrr` makes turning Adaptive-Sync off fail the way a monitor that went quiet does.
       if (FAIL_VRR && id === "adaptive-sync") throw "the monitor did not apply 'adaptive-sync' = 0 (it did not answer); the previous value was restored. Another setting may be locking it (for example a picture mode or AI Scene Optimization).";
@@ -133,16 +156,18 @@ export function previewBackend() {
       const label = controls(values, features.pbp).find((x) => x.id === id)?.label ?? "Setting";
       if (values[id] === value) return { state: state(), toast: null, undoable: false };
       history.push([id, values[id]]);
-      values[id] = value;
       // The monitor clears Motion Blur Reduction when Adaptive-Sync comes on.
       const cleared = id === "adaptive-sync" && value !== 0 && values["motion-blur"] === 1;
-      if (id === "adaptive-sync" && value !== 0) values["motion-blur"] = 2;
+      for (const v of targets(monitor)) {
+        v[id] = value;
+        if (id === "adaptive-sync" && value !== 0) v["motion-blur"] = 2;
+      }
       emit();
       return { state: state(), toast: cleared ? `${label} updated. Motion Blur Reduction turned off with it.` : `${label} updated`, undoable: true };
     },
-    async revertControl(id: string, value: number): Promise<Outcome> {
+    async revertControl(id: string, value: number, monitor: string | null = null): Promise<Outcome> {
       await wait(120);
-      values[id] = value;
+      for (const v of targets(monitor)) v[id] = value;
       emit();
       return { state: state(), toast: "Put back", undoable: false };
     },
@@ -172,7 +197,7 @@ export function previewBackend() {
       await wait(500);
       picture = label;
       const raw = controls(values, features.pbp).find((x) => x.id === "picture-mode")?.choices.find((ch) => ch.label === label)?.raw;
-      if (raw !== undefined) values["picture-mode"] = raw;
+      if (raw !== undefined) for (const v of targets()) v["picture-mode"] = raw;
       refreshing = true;
       setTimeout(() => { refreshing = false; emit(); }, 2500);
       return { kind: "applied", state: state(), notice: null };

@@ -7,13 +7,19 @@ type Backend = {
   rescan(): Promise<AppState>;
   useDemo(): Promise<AppState>;
   setLabs(on: boolean): Promise<AppState>;
-  setControl(id: string, value: number): Promise<Outcome>;
-  toggleFeature(feature: Feature, on: boolean, confirmed: boolean): Promise<FeatureOutcome>;
+  /** Make a monitor (by `MonitorCard.id`) the one the app controls. */
+  selectMonitor(id: string): Promise<AppState>;
+  /** Send every change to all connected monitors. */
+  setLinked(on: boolean): Promise<AppState>;
+  // `monitor` is the monitor the window showed (`MonitorCard.id`), so a change
+  // never lands on one another window has just selected. `null` = the selected one.
+  setControl(id: string, value: number, monitor: string | null): Promise<Outcome>;
+  toggleFeature(feature: Feature, on: boolean, confirmed: boolean, monitor: string | null): Promise<FeatureOutcome>;
   simulatePbp(on: boolean): Promise<FeatureOutcome>;
-  pickPictureMode(label: string, confirmed: boolean): Promise<FeatureOutcome>;
-  undo(): Promise<Outcome>;
-  revertControl(id: string, value: number): Promise<Outcome>;
-  resetOriginal(): Promise<Outcome>;
+  pickPictureMode(label: string, confirmed: boolean, monitor: string | null): Promise<FeatureOutcome>;
+  undo(monitor: string | null): Promise<Outcome>;
+  revertControl(id: string, value: number, monitor: string | null): Promise<Outcome>;
+  resetOriginal(monitor: string | null): Promise<Outcome>;
   getHotkeys(): Promise<HotkeysView>;
   setHotkeys(enabled: boolean, bindings: Record<HotkeyAction, string>): Promise<HotkeysView>;
   getAutostart(): Promise<boolean>;
@@ -36,13 +42,15 @@ async function tauriBackend(): Promise<Backend> {
     rescan: () => invoke("rescan"),
     useDemo: () => invoke("use_demo"),
     setLabs: (on) => invoke("set_labs", { on }),
-    setControl: (id, value) => invoke("set_control", { id, value }),
-    toggleFeature: (feature, on, confirmed) => invoke("toggle_feature", { feature, on, confirmed }),
+    selectMonitor: (id) => invoke("select_monitor", { id }),
+    setLinked: (on) => invoke("set_linked", { on }),
+    setControl: (id, value, monitor) => invoke("set_control", { id, value, monitor }),
+    toggleFeature: (feature, on, confirmed, monitor) => invoke("toggle_feature", { feature, on, confirmed, monitor }),
     simulatePbp: (on) => invoke("simulate_pbp", { on }),
-    pickPictureMode: (label, confirmed) => invoke("pick_picture_mode", { label, confirmed }),
-    undo: () => invoke("undo"),
-    revertControl: (id, value) => invoke("revert_control", { id, value }),
-    resetOriginal: () => invoke("reset_original"),
+    pickPictureMode: (label, confirmed, monitor) => invoke("pick_picture_mode", { label, confirmed, monitor }),
+    undo: (monitor) => invoke("undo", { monitor }),
+    revertControl: (id, value, monitor) => invoke("revert_control", { id, value, monitor }),
+    resetOriginal: (monitor) => invoke("reset_original", { monitor }),
     getHotkeys: () => invoke("get_hotkeys"),
     setHotkeys: (enabled, bindings) => invoke("set_hotkeys", { enabled, bindings }),
     getAutostart: () => invoke("get_autostart"),

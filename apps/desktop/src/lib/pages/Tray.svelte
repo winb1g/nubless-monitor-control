@@ -2,7 +2,7 @@
   import { popover } from "../motion";
   import { fly } from "svelte/transition";
   import { Maximize2 } from "@lucide/svelte";
-  import { ui, rescan } from "../store.svelte";
+  import { ui, rescan, selectMonitor } from "../store.svelte";
   import { api } from "../api";
   import Slider from "../components/Slider.svelte";
   import Lock from "../components/Lock.svelte";
@@ -15,6 +15,10 @@
   const loading = $derived(!!ui.switching || !!s?.refreshing);
   const open = async (page?: string) => (await api()).openMain(page);
   const quit = async () => (await api()).quit();
+  /** With two or more monitors, the popover can switch between them. */
+  const choices = $derived(s?.monitors.filter((m) => m.supported) ?? []);
+  /** The OS's own number for it ("LG ULTRAGEAR+ (2)" is 2), else its place in the list. */
+  const number = (name: string, i: number) => name.match(/\((\d+)\)$/)?.[1] ?? String(i + 1);
   const status = $derived(!s ? "Looking for your monitor…" : s.phase === "connected" ? (s.demo ? "Simulated" : "Connected") : "No monitor found");
 </script>
 
@@ -27,6 +31,14 @@
     <b>{s?.monitors.find((m) => m.selected)?.name ?? "nubless"}</b>
     <span class="eyebrow status"><i class="led" class:blink={s?.phase === "connected" && s.demo} class:off={s?.phase !== "connected"}></i>{status}</span>
   </div>
+  {#if s && choices.length > 1}
+    <div class="pick" role="group" aria-label="Monitor">
+      {#each choices as m, i (m.id)}
+        <button class:selected={m.selected} aria-pressed={m.selected} aria-label={m.name} title={m.port ? `${m.name} · ${m.port}` : m.name} onclick={() => selectMonitor(m.id)}>{number(m.name, i)}</button>
+      {/each}
+      <span class="eyebrow">{s.linked ? "All together" : "One at a time"}</span>
+    </div>
+  {/if}
 
   {#if !s}
     <div class="skeleton" style="height:56px;margin:14px 0 8px"></div>
@@ -112,6 +124,32 @@
     height: 8px;
   }
 
+  .pick {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding-top: var(--space-2);
+  }
+  .pick button {
+    min-width: var(--hit);
+    min-height: 28px;
+    border: 2px solid var(--ink);
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--ink);
+    font-weight: 800;
+    transition: background var(--fast) var(--ease);
+  }
+  .pick button:hover:not(.selected) {
+    background: var(--wash);
+  }
+  .pick button.selected {
+    background: var(--ink);
+    color: var(--ground);
+  }
+  .pick .eyebrow {
+    margin-left: auto;
+  }
   .sliders {
     padding-top: var(--space-2);
     transition: opacity var(--base) var(--ease);

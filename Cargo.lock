@@ -2602,6 +2602,9 @@ version = "0.2.2"
 dependencies = [
  "nubless-core",
  "nubless-hw",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "tauri",
@@ -2638,7 +2641,9 @@ name = "nubless-hw"
 version = "0.2.2"
 dependencies = [
  "ddc-hi",
+ "ddc-winapi",
  "nubless-core",
+ "winapi",
 ]
 
 [[package]]
