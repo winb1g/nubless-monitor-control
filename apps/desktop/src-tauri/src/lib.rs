@@ -219,8 +219,8 @@ fn set_auto_update(on: bool) -> Result<bool, String> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    let json = serde_json::to_string_pretty(&UpdatePrefs { auto_check: on })
-        .map_err(|e| e.to_string())?;
+    let json =
+        serde_json::to_string_pretty(&UpdatePrefs { auto_check: on }).map_err(|e| e.to_string())?;
     std::fs::write(path, json).map_err(|e| format!("Couldn't save this setting: {e}"))?;
     Ok(on)
 }
@@ -241,7 +241,10 @@ fn with_pip(rgba: &[u8], w: u32, h: u32) -> Vec<u8> {
         for x in 0..w {
             let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
             // Dark ring so the pip reads on light and dark taskbars; green inside.
-            let (ring, fill) = ((r + 0.5 - d).clamp(0.0, 1.0), (r * 0.7 + 0.5 - d).clamp(0.0, 1.0));
+            let (ring, fill) = (
+                (r + 0.5 - d).clamp(0.0, 1.0),
+                (r * 0.7 + 0.5 - d).clamp(0.0, 1.0),
+            );
             if ring == 0.0 {
                 continue;
             }
