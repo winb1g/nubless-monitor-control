@@ -421,6 +421,31 @@ mod tests {
         other.vcp.remove(&0xF9);
         assert_eq!(id.matches(None, None, None, Some(&other)), Match::No);
     }
+
+    /// Issue #6: the same monitor on HDMI shows an EDID with another product code.
+    #[test]
+    fn another_inputs_edid_still_identifies_it() {
+        use crate::profile::Match;
+        let id = &PROFILE.identity;
+        let caps = Capabilities::parse(CAPABILITIES_SAMPLE).unwrap();
+        // The name is the same on every input.
+        assert_eq!(
+            id.matches(Some("GSM"), Some(0x5CF9), Some("LG ULTRAGEAR+"), None),
+            Match::Edid
+        );
+        // No name in this EDID: the capabilities decide.
+        assert_eq!(
+            id.matches(Some("GSM"), Some(0x5CF9), None, Some(&caps)),
+            Match::Fingerprint
+        );
+        assert_eq!(id.matches(Some("GSM"), Some(0x5CF9), None, None), Match::No);
+        // Another maker, or no maker but a product code, is still another monitor.
+        assert_eq!(
+            id.matches(Some("DEL"), Some(0x5CF9), None, Some(&caps)),
+            Match::No
+        );
+        assert_eq!(id.matches(None, Some(0x5CF9), None, Some(&caps)), Match::No);
+    }
 }
 
 /// Guards on how much the profile claims. Raising a control's [`Confidence`] is a

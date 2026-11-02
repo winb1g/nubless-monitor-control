@@ -36,6 +36,8 @@ pub struct HwDisplay {
     pub backend: String,
     pub description: String,
     pub matched: Match,
+    /// The monitor answered the capabilities request when it was identified.
+    pub answered: bool,
     pub os: OsInfo,
 }
 
@@ -47,6 +49,28 @@ impl HwDisplay {
             self.os.serial,
             self.os.port.clone(),
         )
+    }
+
+    /// What identified it, or why it wasn't: the EDID's maker, product code
+    /// and name, and whether it answered over DDC/CI. Shown for displays that
+    /// aren't supported, so a report says which part didn't match.
+    pub fn evidence(&self) -> String {
+        let m = &self.display.info;
+        let mut edid = vec![];
+        edid.extend(m.manufacturer_id.clone());
+        edid.extend(m.model_id.map(|p| format!("0x{p:04X}")));
+        edid.extend(m.model_name.as_deref().map(|n| format!("\"{n}\"")));
+        let edid = if edid.is_empty() {
+            "no EDID".to_string()
+        } else {
+            format!("EDID {}", edid.join(" "))
+        };
+        let ddc = if self.answered {
+            "answers over DDC/CI"
+        } else {
+            "no DDC/CI reply"
+        };
+        format!("{edid}, {ddc}")
     }
 
     pub fn summary(&self) -> String {
@@ -76,7 +100,7 @@ impl HwDisplay {
 
 /// Read the capabilities string and match it against `profile`. The
 /// capabilities read is the flakiest DDC/CI message; give it a few tries.
-fn identify(display: &mut Display, profile: &Profile) -> Match {
+fn identify(display: &mut Display, profile: &Profile) -> (Match, bool) {
     let caps = (0..5).find_map(|attempt| {
         if attempt > 0 {
             std::thread::sleep(std::time::Duration::from_millis(300 * attempt as u64));
@@ -85,20 +109,27 @@ fn identify(display: &mut Display, profile: &Profile) -> Match {
         Capabilities::parse(&String::from_utf8_lossy(&raw)).ok()
     });
     let info = &display.info;
-    profile.identity.matches(
+    let matched = profile.identity.matches(
         info.manufacturer_id.as_deref(),
         info.model_id,
         info.model_name.as_deref(),
         caps.as_ref(),
-    )
+    );
+    (matched, caps.is_some())
 }
 
-fn wrap(index: usize, display: Display, os: OsInfo, matched: Match) -> HwDisplay {
+fn wrap(
+    index: usize,
+    display: Display,
+    os: OsInfo,
+    (matched, answered): (Match, bool),
+) -> HwDisplay {
     HwDisplay {
         index,
         backend: display.info.backend.to_string(),
         description: display.info.id.clone(),
         matched,
+        answered,
         os,
         display,
     }
@@ -111,8 +142,8 @@ pub fn enumerate(profile: &Profile) -> Vec<HwDisplay> {
         .into_iter()
         .enumerate()
         .map(|(index, (mut display, os))| {
-            let matched = identify(&mut display, profile);
-            wrap(index, display, os, matched)
+            let found = identify(&mut display, profile);
+            wrap(index, display, os, found)
         })
         .collect()
 }
@@ -133,8 +164,8 @@ pub fn reopen(profile: &Profile, id: &Identity) -> Option<HwDisplay> {
         }
     };
     let (index, (mut display, os)) = candidates.into_iter().find(|(_, (_, os))| same(os))?;
-    let matched = identify(&mut display, profile);
-    (matched != Match::No).then(|| wrap(index, display, os, matched))
+    let found = identify(&mut display, profile);
+    (found.0 != Match::No).then(|| wrap(index, display, os, found))
 }
 
 fn io(e: impl std::fmt::Display) -> TransportError {

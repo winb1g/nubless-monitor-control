@@ -363,6 +363,8 @@ fn list_displays(mock: bool) -> AnyResult {
         println!("{}  -> {verdict}", d.summary());
         if d.matched != Match::No {
             println!("    known as {}", d.identity().key());
+        } else {
+            println!("    seen: {}", d.evidence());
         }
     }
     Ok(())
