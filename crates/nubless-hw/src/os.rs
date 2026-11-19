@@ -76,16 +76,52 @@ pub fn displays() -> Vec<(Display, OsInfo)> {
         .collect()
 }
 
+/// The three-letter PnP manufacturer id (`GSM`) packed into an EDID's vendor
+/// field, as CoreGraphics returns it (`0x1E6D`): three 5-bit letters, `1` = `A`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub(crate) fn pnp_id(vendor: u32) -> Option<String> {
+    let v = u16::try_from(vendor).ok()?;
+    let letter = |shift: u16| match (v >> shift) & 0x1F {
+        n @ 1..=26 => Some(char::from(b'A' + n as u8 - 1)),
+        _ => None,
+    };
+    (v & 0x8000 == 0).then_some(())?;
+    Some([letter(10)?, letter(5)?, letter(0)?].iter().collect())
+}
+
 #[cfg(target_os = "macos")]
 pub fn displays() -> Vec<(Display, OsInfo)> {
     Display::enumerate()
         .into_iter()
-        .map(|d| {
+        .map(|mut d| {
             #[allow(unreachable_patterns)]
             let id = match &d.handle {
                 ddc_hi::Handle::MacOS(m) => Some(m.handle().id),
                 _ => None,
             };
+            // ddc-hi only fills the EDID fields when macOS hands it the raw EDID
+            // (`IODisplayEDIDOriginal`). Without them, a monitor whose
+            // capabilities read fails (as over some Mac HDMI ports) could only be
+            // called unsupported (issue #6). CoreGraphics still knows who made
+            // it, which model and which unit, all read from that same EDID, and
+            // the product name macOS shows comes from it too.
+            #[allow(irrefutable_let_patterns)]
+            if let ddc_hi::Handle::MacOS(m) = &d.handle {
+                let cg = m.handle();
+                let info = &mut d.info;
+                if info.manufacturer_id.is_none() {
+                    info.manufacturer_id = pnp_id(cg.vendor_number());
+                }
+                if info.model_id.is_none() {
+                    info.model_id = u16::try_from(cg.model_number()).ok().filter(|&p| p != 0);
+                }
+                if info.serial.is_none() {
+                    info.serial = Some(cg.serial_number()).filter(|&s| s != 0);
+                }
+                if info.model_name.is_none() {
+                    info.model_name = m.product_name();
+                }
+            }
             let mut os = from_edid(
                 &d,
                 OsInfo {
@@ -228,4 +264,21 @@ pub fn displays() -> Vec<(Display, OsInfo)> {
             (d, os)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pnp_id;
+
+    #[test]
+    fn decodes_pnp_manufacturer_ids() {
+        assert_eq!(pnp_id(0x1E6D).as_deref(), Some("GSM")); // LG
+        assert_eq!(pnp_id(0x10AC).as_deref(), Some("DEL")); // Dell
+        assert_eq!(pnp_id(0x0610).as_deref(), Some("APP")); // Apple
+
+        // CoreGraphics' "unknown vendor", and values that aren't letters.
+        assert_eq!(pnp_id(0xFFFF_FFFF), None);
+        assert_eq!(pnp_id(0), None);
+        assert_eq!(pnp_id(0x8000 | 0x1E6D), None);
+    }
 }

@@ -107,7 +107,7 @@ nubless --experimental set adaptive-sync basic   # asks "Keep this change?", rev
 
 ## Two or more monitors
 
-nubless connects to every supported monitor it finds, even several of the same model.
+nubless connects to every supported monitor it finds, even several of the same model, and on any input: LG gives each input (HDMI, DisplayPort, USB-C) its own EDID, so a monitor on HDMI is recognised as the same model as its twin on DisplayPort.
 
 - **Each monitor is its own.** It has its own original settings and undo history, kept by its EDID serial number (or the port it's plugged into, when it reports no serial). "Reset to my original settings" and Undo only touch the monitor they're for.
 - **Monitors carry the names your OS gives them**, such as "LG ULTRAGEAR+ (2)" on macOS, with the model and port (`DP-1`, `DISPLAY2`) underneath.

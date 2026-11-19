@@ -178,8 +178,9 @@ pub struct Identity {
 pub enum Match {
     /// EDID manufacturer + product code or name agree.
     Edid,
-    /// No EDID available (Windows `dxva2`), but the capabilities string has the
-    /// expected `model(...)` and every fingerprint code.
+    /// No EDID available (Windows `dxva2`), or one from the right maker with a
+    /// product code not recorded yet and no name (another input's EDID), but the
+    /// capabilities string has the expected `model(...)` and every fingerprint code.
     Fingerprint,
     No,
 }
@@ -202,8 +203,18 @@ impl Identity {
         {
             return Match::Edid;
         }
-        // An EDID that names another monitor wins over a fingerprint.
-        if edid_manufacturer.is_some() || edid_product.is_some() {
+        // An EDID that names another monitor wins over a fingerprint. LG gives
+        // each input its own EDID, with its own product code (a 34UC80 is one
+        // number on HDMI and another on DisplayPort), so a product code we
+        // haven't recorded from the right maker only says "another input", not
+        // "another monitor": that still needs the fingerprint, unless the EDID
+        // also names a different model.
+        let names_another = match edid_manufacturer {
+            Some(maker) if maker == self.edid_manufacturer => edid_name.is_some(),
+            Some(_) => true,
+            None => edid_product.is_some(),
+        };
+        if names_another {
             return Match::No;
         }
         match caps {
