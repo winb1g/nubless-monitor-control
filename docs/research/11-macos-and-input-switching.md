@@ -18,7 +18,7 @@ The bytes after `6e 80 be` look like a valid reply, but they are left over from 
 
 The same header shows up elsewhere: BetterDisplay logged `Malformed DDC reply received [110, 128, 190, …]` (`6e 80 be`) from an LG 27UP650K plugged straight into an M1 Pro MacBook Pro (MacBookPro18,1) [4]. The thread itself is about the same monitor failing behind a Thunderbolt dock. There, opening and quitting MonitorControl, or sending one m1ddc brightness write, made BetterDisplay work afterwards. Nobody there worked out why.
 
-**The fix: write every request twice, 10 ms apart, then read the reply.** That gets a proper reply every time, even from a monitor already in the null state. MonitorControl's `Arm64DDC.swift` writes every request twice by default (`numOfWriteCycles` defaults to 2, with a 10 ms sleep before each write and a 50 ms wait before the read) [5]. Its code gives no reason. kvm-follow, on an LG 34WQ650, also says to send every command twice: "LG panels swallow the first one often enough to be annoying" [6]. nubless does the same on macOS (`crates/nubless-hw/src/twice.rs`, #15). On the M1 Max, the same approach was checked over USB-C and DP: capabilities fingerprint, all 23 controls read, a brightness write confirmed in the OSD.
+**The fix: write every request twice, 10 ms apart, then read the reply.** That gets a proper reply every time, even from a monitor already in the null state. MonitorControl's `Arm64DDC.swift` writes every request twice by default (`numOfWriteCycles` defaults to 2, with a 10 ms sleep before each write and a 50 ms wait before the read) [5]. Its code gives no reason. kvm-follow, on an LG 34WQ650, also says to send every command twice: "LG panels swallow the first one often enough to be annoying" [6]. LG's own Mac app goes further: it writes every set three times and every read request six times ([`12-lg-switch-mac.md`](12-lg-switch-mac.md)). nubless does the same on macOS (`crates/nubless-hw/src/twice.rs`, #15). On the M1 Max, the same approach was checked over USB-C and DP: capabilities fingerprint, all 23 controls read, a brightness write confirmed in the OSD.
 
 Each input keeps its own brightness (USB-C read 70 while DP read 52).
 
@@ -65,9 +65,16 @@ Other notes:
 
 - On this model the switch works even while another input is showing. With another computer's picture on USB-C, this Mac sent `0xD0` over DP and got its picture back. So the computer that loses the picture can still send the next switch.
 - With **Auto Input Switch** on, an input with no signal falls back to one that has a signal after a few seconds. This is the easy way back after testing a code.
-- Reading `0xF4` back gives `6`, which doesn't match any input value. Reading it is not reliable.
+- `0xF4` read on the standard channel (`0x51`) isn't the input. LG Switch's opcode table names it `MANUFACTURER_GET_RATIO_LIST` ([`08-lg-opcode-and-enum-tables.md`](08-lg-opcode-and-enum-tables.md)), and it reads 7 with Adaptive-Sync Off and 6 otherwise ([`../rules.md`](../rules.md)), so the aspect ratios on offer may change with Adaptive-Sync. Writing `0xF4` on the standard channel is on nubless's never-write list: only the `0x50` side channel switches inputs.
 - Send only the values in the table. kvm-follow warns: "Do not brute-force the sidechannel", because it's LG's factory service channel [6].
 - kvm-follow also found DDC/CI registers are global to the monitor, so either computer can switch inputs whatever is showing [6]. That matches the first point here.
+
+## In nubless
+
+- **CLI:** `nubless switch-input <displayport|usb-c|hdmi-1|hdmi-2>` asks before it sends (`--yes` skips the question), then says the monitor doesn't confirm and to run it again if nothing changed.
+- **App:** the Input section on Displays has a button for each input. Each one asks first, then shows a toast with the same advice. No button is shown as selected, because the current input can't be read.
+- **How it's kept safe:** `safety::check_input_switch` only allows the four values in the profile's `INPUT_SWITCH`, the ones that showed a picture. It isn't a normal control, so it's never read, snapshotted, journaled or undone, and it's sent once without automatic retries. Even with "Change all together", the app only switches the monitor whose window you used.
+- **Platforms:** Apple Silicon Macs (`crates/nubless-hw/src/side_channel.rs`). Windows' DDC/CI API can't change the sender address [6], and the Linux path (`ddcutil --i2c-source-addr=x50` shows it's possible [7]) hasn't been written or tried. Both say it isn't supported yet.
 
 ## Sources
 
