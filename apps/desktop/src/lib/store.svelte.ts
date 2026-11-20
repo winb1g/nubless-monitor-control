@@ -260,6 +260,27 @@ function handleFeature(out: FeatureOutcome | undefined) {
   }
 }
 
+/**
+ * Switch the monitor to another input. It asks first, because the screen will
+ * show whatever is on that input; nothing can read which input is showing, so
+ * there is no undo, only another switch.
+ */
+export async function switchInput(value: number, label: string) {
+  const ok = await ask({
+    title: `Switch to ${label}?`,
+    body: `Your monitor will show whatever is on ${label}. To come back, switch from nubless on this computer (it still works while another input is showing) or use the monitor's menu.`,
+    confirm: "Switch",
+    cancel: "Not now",
+  });
+  if (!ok) return;
+  const monitor = shown();
+  const out = await guarded(async () => (await api()).switchInput(value, monitor));
+  if (out) {
+    ui.state = out.state;
+    if (out.toast) toast(out.toast, "info");
+  }
+}
+
 export async function resetOriginal() {
   const ok = await ask({
     title: "Reset to your original settings?",

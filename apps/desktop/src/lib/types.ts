@@ -64,6 +64,8 @@ export interface AppState {
   version: string;
   /** Values are being re-read after a picture-mode switch. */
   refreshing: boolean;
+  /** Inputs the selected monitor can be switched to from this computer; empty when it can't. */
+  inputs: { raw: number; label: string }[];
 }
 
 export interface Outcome {

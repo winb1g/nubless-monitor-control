@@ -4,7 +4,9 @@
 //! and `08-lg-opcode-and-enum-tables.md`. Raise a control's [`Confidence`] only
 //! with a recorded test card (see `docs/mapping-guide.md`).
 
-use crate::profile::{Choice, Confidence::*, Control, Identity, Profile, Risk, ValueKind};
+use crate::profile::{
+    Choice, Confidence::*, Control, Identity, InputSwitch, Profile, Risk, ValueKind,
+};
 
 /// Capabilities string read from a real 27GM950B (firmware 3.05), whitespace as returned.
 pub const CAPABILITIES_SAMPLE: &str = "(prot(monitor)type(lcd)model(WK95U)cmds(01 02 03 0C E3 F3)vcp(02 04 05 08 10 12 14(05 08 0B) 16 18 1A 52 60(11 12 0F 10) AC AE B2 B6 C0 C6 C8 C9 D6(01 04) DF 62 8D F4 F5(01 02 03 04) F6(00 01 02) 4D 4E 4F 15(01 06 11 13 14 15 18 19 20 22 23 24 28 29 32 48) F7(00 01 02 03) F8(00 01) F9 E4 E5 E6 E7 E8 E9 EA EB EF FA(00 01) FD(00 01) FE(00 01 02) FF)mccs_ver(2.1)mswhql(1))";
@@ -155,14 +157,13 @@ const COLOR_PRESETS: &[Choice] = &[
     },
 ];
 
+/// What 0x60 reads. The monitor reports 0x0F on DisplayPort and on USB-C
+/// (fw 3.05, 2026-11-19), so the two can't be told apart; HDMI's values are the
+/// standard ones, not yet read on HDMI.
 const INPUTS: &[Choice] = &[
     Choice {
         raw: 0x0F,
-        label: "DisplayPort",
-    },
-    Choice {
-        raw: 0x10,
-        label: "USB-C",
+        label: "DisplayPort or USB-C",
     },
     Choice {
         raw: 0x11,
@@ -299,7 +300,7 @@ pub const CONTROLS: &[Control] = &[
     Control {
         id: "input", label: "Input", vcp: 0x60, kind: ValueKind::Choice { choices: INPUTS },
         confidence: Candidate, standard: true, writable: false, risk: Risk::DeadEnd,
-        note: "Standard input select; reads 0x0F on DisplayPort. Switching away may cut DDC/CI so the app could not switch back: blocked until proven recoverable.",
+        note: "Standard input select; reads 0x0F on DisplayPort and on USB-C, so it can't tell them apart. Never written: switching inputs goes over LG's side channel instead (see INPUT_SWITCH and `nubless switch-input`).",
     },
     // ---- Info -------------------------------------------------------------
     Control {
@@ -323,7 +324,8 @@ pub const PROFILE: Profile = Profile {
     model: "27GM950B",
     identity: Identity {
         edid_manufacturer: "GSM",
-        edid_product_codes: &[0x5CF8],
+        // DisplayPort, HDMI: LG gives each input its own EDID product code.
+        edid_product_codes: &[0x5CF8, 0x5CF7],
         edid_names: &["LG ULTRAGEAR+"],
         caps_model: "WK95U",
         vcp_fingerprint: &[
@@ -331,7 +333,37 @@ pub const PROFILE: Profile = Profile {
         ],
     },
     controls: CONTROLS,
+    input_switch: Some(&INPUT_SWITCH),
     mode_control: Some("picture-mode"),
+};
+
+/// LG's side-channel input values on this model. Each one showed a picture
+/// from that input, switched from a Mac over DisplayPort (fw 3.05, 2026-11-19;
+/// docs/research/11-macos-and-input-switching.md). `0xD2`, USB-C on other
+/// LG models' value lists, does nothing here.
+const SWITCH_INPUTS: &[Choice] = &[
+    Choice {
+        raw: 0xD0,
+        label: "DisplayPort",
+    },
+    Choice {
+        raw: 0xD1,
+        label: "USB-C",
+    },
+    Choice {
+        raw: 0x90,
+        label: "HDMI 1",
+    },
+    Choice {
+        raw: 0x91,
+        label: "HDMI 2",
+    },
+];
+
+pub const INPUT_SWITCH: InputSwitch = InputSwitch {
+    vcp: 0xF4,
+    inputs: SWITCH_INPUTS,
+    note: "LG side channel: 0xF4 sent with sender address 0x50. All four inputs showed a picture when switched to (fw 3.05, 2026-11-19). The monitor doesn't confirm a switch, and once the first send didn't switch while a second one did, so send again if nothing changes.",
 };
 
 #[cfg(test)]
@@ -402,6 +434,11 @@ mod tests {
         let caps = Capabilities::parse(CAPABILITIES_SAMPLE).unwrap();
         assert_eq!(
             id.matches(Some("GSM"), Some(0x5CF8), None, None),
+            Match::Edid
+        );
+        // The same monitor on HDMI.
+        assert_eq!(
+            id.matches(Some("GSM"), Some(0x5CF7), None, None),
             Match::Edid
         );
         assert_eq!(

@@ -229,11 +229,46 @@ impl Identity {
     }
 }
 
+/// Switching inputs over LG's side channel: Set VCP `vcp` = an input's value,
+/// sent with sender address [`crate::safety::LG_SIDE_CHANNEL`] (`0x50`) instead
+/// of the standard `0x51`. This isn't a [`Control`]: the current input can't be
+/// read back (`0x60` reads DisplayPort on USB-C too, and `0xF4` on the standard
+/// channel is LG's aspect-ratio list), so it is never read, snapshotted,
+/// journaled or undone. The monitor doesn't confirm a switch either; the screen
+/// is the only check.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct InputSwitch {
+    pub vcp: u8,
+    /// Every value here was seen to show a picture from that input.
+    pub inputs: &'static [Choice],
+    pub note: &'static str,
+}
+
+impl InputSwitch {
+    /// Find an input by its label or a short name: `dp`, `displayport`, `usb-c`,
+    /// `usbc`, `hdmi1`, `hdmi-1`, `HDMI 1`. Case, spaces, `-` and `_` don't matter.
+    pub fn find(&self, name: &str) -> Option<&'static Choice> {
+        let squash = |s: &str| {
+            s.chars()
+                .filter(|c| !matches!(c, ' ' | '-' | '_'))
+                .flat_map(char::to_lowercase)
+                .collect::<String>()
+        };
+        let wanted = match squash(name).as_str() {
+            "dp" => "displayport".to_string(),
+            other => other.to_string(),
+        };
+        self.inputs.iter().find(|c| squash(c.label) == wanted)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct Profile {
     pub model: &'static str,
     pub identity: Identity,
     pub controls: &'static [Control],
+    /// How to switch inputs on this model, if anyone has confirmed it.
+    pub input_switch: Option<&'static InputSwitch>,
     /// Control whose value scopes the others: each picture mode keeps its own
     /// brightness, contrast and so on, so a snapshot only applies in its mode.
     pub mode_control: Option<&'static str>,
