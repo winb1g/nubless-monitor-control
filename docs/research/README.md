@@ -18,6 +18,7 @@ Interoperability research on **LG Switch** (v7.60), to build an **open-source, l
 | [`06-method.md`](06-method.md) | How the findings were obtained (reproducible), and what we deliberately did not do |
 | [`09-ai-channel-and-picture-modes.md`](09-ai-channel-and-picture-modes.md) | LG's AI sub-command channel (VCP 0xA6), which picture modes allow AI, and picture-mode values on the wire |
 | [`10-osd-inventory.md`](10-osd-inventory.md) | Every OSD page and option on a real unit, and which are mapped |
+| [`11-macos-and-input-switching.md`](11-macos-and-input-switching.md) | macOS: which ports carry DDC/CI, the null-reply state and the double-send fix; switching inputs over LG's `0xF4` side channel |
 | [`07-roadmap.md`](07-roadmap.md) | Proposed architecture, phases, safety rules |
 | [`tools/`](tools/README.md) | Scripts to reproduce and to continue the mapping (read-only) |
 

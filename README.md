@@ -78,6 +78,8 @@ Download the installer for your system from the [latest release](https://github.
 
 Turn on **DDC/CI** in the monitor's menu (it is on by default). On Linux, load the `i2c-dev` module and give your user access to `/dev/i2c-*`. If LG Switch is running, quit it to avoid collisions: its service also talks DDC/CI, and nubless paces and retries its messages but can't control LG's.
 
+On a Mac with an M1-family chip, connect the monitor over **USB-C or DisplayPort**: the built-in HDMI port on those Macs doesn't pass DDC/CI through to the 27GM950B. (On an M5 Max, HDMI works.)
+
 No monitor handy? Try the app against a simulated one:
 
 ```bash
