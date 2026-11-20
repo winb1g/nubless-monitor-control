@@ -80,6 +80,13 @@ pub enum Req {
         monitor: Option<String>,
         reply: Reply<Result<Outcome, String>>,
     },
+    /// Switch the monitor to another input over LG's side channel. Never
+    /// mirrored to other monitors, even when linked.
+    SwitchInput {
+        monitor: Option<String>,
+        value: u16,
+        reply: Reply<Result<Outcome, String>>,
+    },
     /// A global shortcut fired. No reply: every window gets the new state.
     Hotkey(Action),
 }
@@ -615,6 +622,14 @@ impl Worker {
                 });
                 let _ = reply.send(out);
             }
+            Req::SwitchInput {
+                monitor,
+                value,
+                reply,
+            } => {
+                let out = self.aimed_outcome(monitor.as_deref(), |w| w.switch_input(value));
+                let _ = reply.send(out);
+            }
             Req::Set { .. } | Req::Hotkey(_) => unreachable!("handled in run"),
         }
     }
@@ -876,6 +891,22 @@ impl Worker {
             )),
             Some(_) => Ok(()),
         }
+    }
+
+    /// Switch the selected monitor's input. Only that monitor: switching
+    /// several at once is easy to do by accident and hard to undo. The monitor
+    /// doesn't confirm, so the toast says to press again if nothing changed.
+    fn switch_input(&mut self, value: u16) -> Result<Outcome, String> {
+        self.writes_allowed()?;
+        let conn = self.conn_mut().expect("checked");
+        let label = conn.ctl.switch_input(value).map_err(|e| e.to_string())?;
+        Ok(Outcome {
+            state: self.state(),
+            toast: Some(format!(
+                "Switching to {label}. If the picture doesn't change in a few seconds, press it again."
+            )),
+            undoable: false,
+        })
     }
 
     /// [`Self::set`] on the selected monitor, then on the others when linked.
@@ -1339,7 +1370,19 @@ impl Worker {
                 error: self.error.clone(),
                 version,
                 refreshing: false,
+                inputs: vec![],
             };
+        };
+        let inputs = match PROFILE.input_switch {
+            Some(switch) if conn.ctl.can_switch_input() => switch
+                .inputs
+                .iter()
+                .map(|c| view::ChoiceView {
+                    raw: c.raw,
+                    label: c.label,
+                })
+                .collect(),
+            _ => vec![],
         };
         let mut controls: Vec<_> = PROFILE
             .controls
@@ -1374,6 +1417,7 @@ impl Worker {
             error: self.error.clone(),
             version,
             refreshing,
+            inputs,
         }
     }
 }
@@ -2123,6 +2167,49 @@ mod tests {
             select(&mut w, n);
             assert_eq!(value(&mut w, "brightness"), Some(80), "monitor {n}");
         }
+    }
+
+    fn switch(w: &mut Worker, value: u16) -> Result<Outcome, String> {
+        let (tx, rx) = channel();
+        w.handle(Req::SwitchInput {
+            monitor: None,
+            value,
+            reply: tx,
+        });
+        rx.recv().unwrap()
+    }
+
+    #[test]
+    fn the_demo_monitor_offers_the_confirmed_inputs_and_switches() {
+        let mut w = demo_worker("inputs");
+        let labels: Vec<_> = w.state().inputs.iter().map(|c| (c.raw, c.label)).collect();
+        assert_eq!(
+            labels,
+            [
+                (0xD0, "DisplayPort"),
+                (0xD1, "USB-C"),
+                (0x90, "HDMI 1"),
+                (0x91, "HDMI 2")
+            ]
+        );
+        let out = switch(&mut w, 0x90).unwrap();
+        assert!(out.toast.unwrap().starts_with("Switching to HDMI 1."));
+        assert!(!out.undoable, "an input switch can't be undone");
+    }
+
+    #[test]
+    fn switching_to_an_input_that_isnt_confirmed_is_refused() {
+        let mut w = demo_worker("inputs-unknown");
+        let err = switch(&mut w, 0xD2).unwrap_err();
+        assert!(err.contains("isn't an input"), "{err}");
+    }
+
+    #[test]
+    fn switching_inputs_waits_for_the_original_settings_like_every_change() {
+        let mut w = demo_worker("inputs-no-baseline");
+        w.conns[0].baseline = None;
+        w.conns[0].baseline_error = Some("disk full".into());
+        assert!(switch(&mut w, 0x90).unwrap_err().contains("disk full"));
     }
 
     #[test]

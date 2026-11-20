@@ -193,6 +193,23 @@ async fn revert_control(
 }
 
 #[tauri::command]
+async fn switch_input(
+    app: AppHandle,
+    b: State<'_, Backend>,
+    monitor: Option<String>,
+    value: u16,
+) -> Result<Outcome, String> {
+    let out = ask(&b, |reply| Req::SwitchInput {
+        monitor,
+        value,
+        reply,
+    })
+    .await??;
+    broadcast(&app, &out.state);
+    Ok(out)
+}
+
+#[tauri::command]
 async fn reset_original(
     app: AppHandle,
     b: State<'_, Backend>,
@@ -503,6 +520,7 @@ pub fn run() {
             undo,
             revert_control,
             reset_original,
+            switch_input,
             get_hotkeys,
             set_hotkeys,
             get_autostart,

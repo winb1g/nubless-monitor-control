@@ -3,7 +3,7 @@
 //! `ValidatedWrite`, so no code path can send a write that skipped these checks.
 
 use crate::caps::Capabilities;
-use crate::profile::{Control, Risk, ValueKind, WritePolicy};
+use crate::profile::{Control, Profile, Risk, ValueKind, WritePolicy};
 
 /// Codes that are never written, whatever any profile, flag or user says.
 /// Reasons are shown to the user verbatim.
@@ -24,6 +24,7 @@ pub fn deny_reason(code: u8) -> Option<&'static str> {
         0xDB => "LG picture wizard sub-command channel: protocol unknown",
         0xE4..=0xEB => "LG calibration / gamma LUT / color matrix channel: can corrupt calibration",
         0xEF | 0xF0 => "LG display id / heartbeat",
+        0xF4 => "on the standard channel this is LG's aspect-ratio list (read-only); inputs are switched over LG's side channel instead (`nubless switch-input`)",
         0xFD..=0xFF => "LG power LED / gamma preset / wizard option: not mapped",
         _ => return None,
     })
@@ -73,6 +74,74 @@ pub enum SafetyError {
         value: u16,
         allowed: String,
     },
+    #[error("switching inputs hasn't been confirmed on the {model}, so nubless won't do it")]
+    NoInputSwitch { model: &'static str },
+    #[error("0x{value:02X} isn't an input nubless knows on the {model} ({allowed})")]
+    UnknownInput {
+        model: &'static str,
+        value: u16,
+        allowed: String,
+    },
+}
+
+/// LG's side channel: the sender address that makes `0xF4` switch inputs.
+/// Standard DDC/CI uses `0x51`.
+pub const LG_SIDE_CHANNEL: u8 = 0x50;
+
+/// An input switch that passed [`check_input_switch`]. Cannot be built outside
+/// this module, and is the only thing [`crate::transport::Transport::switch_input`]
+/// accepts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedInputSwitch {
+    vcp: u8,
+    value: u16,
+    label: &'static str,
+}
+
+impl ValidatedInputSwitch {
+    pub fn vcp(&self) -> u8 {
+        self.vcp
+    }
+    /// Sender address the write must go out with.
+    pub fn source(&self) -> u8 {
+        LG_SIDE_CHANNEL
+    }
+    pub fn value(&self) -> u16 {
+        self.value
+    }
+    pub fn label(&self) -> &'static str {
+        self.label
+    }
+}
+
+/// Allow an input switch only to a value the profile lists, i.e. one that was
+/// seen to show a picture from that input. Never a value found by trying.
+pub fn check_input_switch(
+    profile: &'static Profile,
+    value: u16,
+) -> Result<ValidatedInputSwitch, SafetyError> {
+    let Some(switch) = profile.input_switch else {
+        return Err(SafetyError::NoInputSwitch {
+            model: profile.model,
+        });
+    };
+    let Some(input) = switch.inputs.iter().find(|c| c.raw == value) else {
+        return Err(SafetyError::UnknownInput {
+            model: profile.model,
+            value,
+            allowed: switch
+                .inputs
+                .iter()
+                .map(|c| format!("{} (0x{:02X})", c.label, c.raw))
+                .collect::<Vec<_>>()
+                .join(", "),
+        });
+    };
+    Ok(ValidatedInputSwitch {
+        vcp: switch.vcp,
+        value: input.raw,
+        label: input.label,
+    })
 }
 
 /// LG's AI channel. Denied as a whole; only the sub-commands below get through.
@@ -324,6 +393,51 @@ mod tests {
         ] {
             assert!(deny_reason(code).is_some(), "0x{code:02X}");
         }
+    }
+
+    #[test]
+    fn input_switch_only_takes_the_profiles_confirmed_inputs() {
+        for (value, label) in [
+            (0xD0, "DisplayPort"),
+            (0xD1, "USB-C"),
+            (0x90, "HDMI 1"),
+            (0x91, "HDMI 2"),
+        ] {
+            let w = check_input_switch(&PROFILE, value).unwrap();
+            assert_eq!(
+                (w.vcp(), w.source(), w.value(), w.label()),
+                (0xF4, 0x50, value, label)
+            );
+        }
+        // 0xD2 is USB-C on other LG models' lists but does nothing on this one;
+        // 0x00 is "auto" on the ddcutil wiki. Neither was seen to work here.
+        for value in [0x00, 0xD2, 0x0F, 0x11, 0x1D1, 0xFFFF] {
+            assert!(
+                matches!(
+                    check_input_switch(&PROFILE, value),
+                    Err(SafetyError::UnknownInput { .. })
+                ),
+                "0x{value:X}"
+            );
+        }
+    }
+
+    #[test]
+    fn input_switch_needs_a_profile_that_has_one() {
+        static NONE: Profile = Profile {
+            input_switch: None,
+            ..PROFILE
+        };
+        assert_eq!(
+            check_input_switch(&NONE, 0xD0),
+            Err(SafetyError::NoInputSwitch { model: "27GM950B" })
+        );
+    }
+
+    #[test]
+    fn the_input_code_is_never_written_on_the_standard_channel() {
+        // 0xF4 on 0x51 is LG's GET_RATIO_LIST (reads 7 or 6); only 0x50 switches inputs.
+        assert!(deny_reason(0xF4).is_some());
     }
 
     #[test]

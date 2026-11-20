@@ -64,6 +64,15 @@ enum Command {
         #[arg(long, default_value_t = KEEP_SECONDS)]
         revert_after: u64,
     },
+    /// Switch the monitor to another input: displayport, usb-c, hdmi-1 or hdmi-2.
+    /// The monitor doesn't confirm a switch; if nothing changes, run it again.
+    SwitchInput {
+        /// displayport (or dp), usb-c, hdmi-1 or hdmi-2.
+        input: String,
+        /// Switch without asking first.
+        #[arg(long)]
+        yes: bool,
+    },
     /// Undo the most recent change.
     Undo,
     /// Show the change journal.
@@ -269,6 +278,7 @@ fn run(cli: Cli) -> AnyResult {
             yes,
             Duration::from_secs(revert_after),
         ),
+        Command::SwitchInput { input, yes } => switch_input(&mut targets, &input, yes),
         Command::Undo => {
             let mut failed = 0;
             for t in &mut targets {
@@ -420,6 +430,73 @@ fn pick_displays(
     }
 }
 
+fn switch_input(targets: &mut [Target], name: &str, yes: bool) -> AnyResult {
+    let Some(switch) = PROFILE.input_switch else {
+        return Err(format!("switching inputs isn't supported on the {}", PROFILE.model).into());
+    };
+    let names = || {
+        switch
+            .inputs
+            .iter()
+            .map(|c| c.label.to_lowercase().replace(' ', "-"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let input = switch
+        .find(name)
+        .ok_or_else(|| format!("unknown input '{name}'; use one of: {}", names()))?;
+    if let Some(t) = targets.iter().find(|t| !t.ctl.can_switch_input()) {
+        return Err(format!("{}: {}", t.name, nubless_core::transport::NO_SIDE_CHANNEL).into());
+    }
+    if !yes {
+        let which = match &*targets {
+            [one] => one.name.clone(),
+            all => format!("{} displays", all.len()),
+        };
+        println!(
+            "Switch {which} to {}? The screen will show whatever is on {}.",
+            input.label, input.label
+        );
+        println!(
+            "To come back, run `nubless switch-input` with this computer's input (it works while \
+             another input is showing), or use the monitor's menu."
+        );
+        print!("Switch? [y/N] ");
+        io::stdout().flush()?;
+        let mut line = String::new();
+        io::stdin().lock().read_line(&mut line)?;
+        if !line.trim().eq_ignore_ascii_case("y") {
+            println!("Nothing was sent.");
+            return Ok(());
+        }
+    }
+    let many = targets.len() > 1;
+    let mut failed = 0;
+    for t in targets.iter_mut() {
+        let prefix = if many {
+            format!("{}: ", t.name)
+        } else {
+            String::new()
+        };
+        match t.ctl.switch_input(input.raw) {
+            Ok(label) => println!("{prefix}Sent: switch to {label}."),
+            Err(e) if !many => return Err(e.into()),
+            Err(e) => {
+                failed += 1;
+                println!("{prefix}{e}");
+            }
+        }
+    }
+    println!(
+        "The monitor doesn't confirm a switch. If the picture hasn't changed in about 5 seconds, \
+         run this again."
+    );
+    if failed > 0 {
+        return Err(format!("{failed} display(s) could not be switched").into());
+    }
+    Ok(())
+}
+
 fn print_controls(experimental: bool) -> AnyResult {
     let policy = if experimental {
         WritePolicy::Experimental
@@ -447,6 +524,23 @@ fn print_controls(experimental: bool) -> AnyResult {
         );
         println!("{:<24}{}", "", c.risk.describe());
         println!("{:<24}{}\n", "", c.note);
+    }
+    if let Some(switch) = PROFILE.input_switch {
+        let inputs = switch
+            .inputs
+            .iter()
+            .map(|c| format!("{} (0x{:02X})", c.label, c.raw))
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!(
+            "{:<18} 0x{:02X}  {:<15} {:<9}  {inputs}",
+            "switch-input", switch.vcp, "WriteConfirmed", "write-only"
+        );
+        println!(
+            "{:<24}`nubless switch-input <input>`; never read, snapshotted or undone",
+            ""
+        );
+        println!("{:<24}{}\n", "", switch.note);
     }
     Ok(())
 }

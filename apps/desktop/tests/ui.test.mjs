@@ -432,3 +432,28 @@ test("Revert after switching monitors puts back the monitor the change was made 
   await page.clock.runFor(500);
   assert.equal(await segment("Response Time", "Fast").getAttribute("aria-pressed"), "true", "monitor 1 was put back");
 });
+
+const inputButton = (name) => page.getByRole("group", { name: "Switch input" }).getByRole("button", { name, exact: true });
+
+test("switching inputs asks first, and says the monitor won't confirm", async () => {
+  await open();
+  for (const name of ["DisplayPort", "USB-C", "HDMI 1", "HDMI 2"]) await inputButton(name).waitFor();
+  // Nothing can read which input is showing, so none is marked as current.
+  assert.equal(await page.getByRole("group", { name: "Switch input" }).locator("[aria-pressed]").count(), 0);
+  await inputButton("HDMI 1").click();
+  const dialog = page.getByRole("alertdialog");
+  assert.match(await dialog.innerText(), /Switch to HDMI 1\?/);
+  assert.match(await dialog.innerText(), /it still works while another input is showing/);
+  await dialog.getByRole("button", { name: "Switch" }).click();
+  await page.clock.runFor(500);
+  await page.getByText("Switching to HDMI 1. If the picture doesn't change in a few seconds, press it again.").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Undo" }).count(), 0, "a switch can't be undone");
+});
+
+test("\"Not now\" switches nothing", async () => {
+  await open();
+  await inputButton("USB-C").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Not now" }).click();
+  await page.clock.runFor(500);
+  assert.equal(await page.getByText("Switching to").count(), 0);
+});

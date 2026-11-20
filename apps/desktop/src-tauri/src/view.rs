@@ -89,6 +89,9 @@ pub struct AppState {
     pub version: &'static str,
     /// Values are being re-read (after a picture-mode switch).
     pub refreshing: bool,
+    /// Inputs the selected monitor can be switched to from this computer;
+    /// empty when it can't (unconfirmed model, or no side channel on this OS).
+    pub inputs: Vec<ChoiceView>,
 }
 
 pub fn group_of(id: &str) -> &'static str {
@@ -111,6 +114,10 @@ pub fn lock_reason(
 ) -> (Option<&'static str>, Option<&'static str>) {
     if policy.allows(c) {
         return (None, None);
+    }
+    // Inputs are switched over LG's side channel instead (the Input section).
+    if c.id == "input" {
+        return (Some("What your monitor reports. It reads the same on DisplayPort and USB-C, so it isn't used to switch inputs."), None);
     }
     if c.risk == Risk::DeadEnd {
         return (Some("Changing this could disconnect nubless from your monitor, so it stays with the monitor's own menu."), None);

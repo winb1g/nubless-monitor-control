@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use crate::profiles::gm950b::CAPABILITIES_SAMPLE;
-use crate::safety::ValidatedWrite;
+use crate::safety::{ValidatedInputSwitch, ValidatedWrite};
 use crate::transport::{Transport, TransportError, VcpReading};
 
 /// Scripted misbehaviour for tests, modelled on what real DDC/CI links do:
@@ -54,6 +54,11 @@ pub struct MockMonitor {
     /// LG AI channel state per sub-command (0xA6): 2 = AI Scene Optimization,
     /// 4 = AI Upscaling, 6 = AI Sound; 1 = off, 2 = on. Seeded from a real unit.
     pub ai: BTreeMap<u8, u8>,
+    /// Input switches sent over LG's side channel, as `(sender address, vcp, value)`.
+    pub side_writes: Vec<(u8, u8, u16)>,
+    /// The input the simulated monitor shows, by its side-channel value.
+    /// Like the real one, it can't be read back over DDC/CI.
+    pub showing: u16,
 }
 
 impl Default for MockMonitor {
@@ -101,6 +106,8 @@ impl MockMonitor {
             reads: 0,
             writes: Vec::new(),
             ai: BTreeMap::from([(2, 2), (4, 1), (6, 1)]),
+            side_writes: Vec::new(),
+            showing: 0xD0,
         }
     }
 }
@@ -212,6 +219,33 @@ impl Transport for MockMonitor {
                 blur.current = 2;
             }
         }
+        Ok(())
+    }
+
+    fn can_switch_input(&self) -> bool {
+        true
+    }
+
+    fn switch_input(&mut self, switch: &ValidatedInputSwitch) -> Result<(), TransportError> {
+        self.side_channel(switch)
+    }
+}
+
+impl MockMonitor {
+    fn side_channel(&mut self, switch: &ValidatedInputSwitch) -> Result<(), TransportError> {
+        self.side_writes
+            .push((switch.source(), switch.vcp(), switch.value()));
+        if self.faults.offline {
+            return Err(link_down());
+        }
+        if take(&mut self.faults.fail_writes) {
+            return Err(TransportError::Io("write was not acknowledged".into()));
+        }
+        // Acknowledged but not switched: the real monitor did this once.
+        if take(&mut self.faults.swallow_writes) {
+            return Ok(());
+        }
+        self.showing = switch.value();
         Ok(())
     }
 }

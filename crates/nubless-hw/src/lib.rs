@@ -9,10 +9,12 @@ use ddc_hi::{Ddc, Display};
 use nubless_core::caps::Capabilities;
 use nubless_core::monitors::Identity;
 use nubless_core::profile::{Match, Profile};
-use nubless_core::safety::ValidatedWrite;
+use nubless_core::safety::{ValidatedInputSwitch, ValidatedWrite};
 use nubless_core::transport::{Transport, TransportError, VcpReading};
 
 mod os;
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+mod side_channel;
 mod twice;
 
 /// Call a `Ddc` method on a display's handle. On macOS it goes through
@@ -207,5 +209,23 @@ impl Transport for HwDisplay {
             set_vcp_feature(write.code(), write.value())
         )
         .map_err(io)
+    }
+
+    /// Apple Silicon only so far. Windows' DDC/CI API can't change the sender
+    /// address, and the Linux path hasn't been tried on hardware.
+    fn can_switch_input(&self) -> bool {
+        cfg!(all(target_os = "macos", target_arch = "aarch64")) && self.os.display_id.is_some()
+    }
+
+    fn switch_input(&mut self, switch: &ValidatedInputSwitch) -> Result<(), TransportError> {
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        if let Some(id) = self.os.display_id {
+            return side_channel::set_vcp(id, switch.source(), switch.vcp(), switch.value())
+                .map_err(TransportError::Io);
+        }
+        let _ = switch;
+        Err(TransportError::Unsupported(
+            nubless_core::transport::NO_SIDE_CHANNEL,
+        ))
     }
 }

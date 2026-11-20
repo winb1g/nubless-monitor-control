@@ -2,7 +2,7 @@
   import { rise, hint } from "../motion";
   import { fly } from "svelte/transition";
   import { FlaskConical, Search } from "@lucide/svelte";
-  import { ui, toggleFeature, simulatePbp, rescan, useDemo, setControl, selectMonitor, setLinked } from "../store.svelte";
+  import { ui, toggleFeature, simulatePbp, rescan, useDemo, setControl, selectMonitor, setLinked, switchInput } from "../store.svelte";
   import type { ControlView, Feature, FeatureState } from "../types";
   import Section from "../components/Section.svelte";
   import Hint from "../components/Hint.svelte";
@@ -176,6 +176,17 @@
             </div>
           {/if}
         </Section>
+
+        {#if s.inputs.length}
+          <!-- No selected state: the monitor can't report which input is showing. -->
+          <Section title="Input" hint="Your monitor doesn't confirm a switch">
+            <div class="inputs" role="group" aria-label="Switch input">
+              {#each s.inputs as i (i.raw)}
+                <button class="btn" onclick={() => switchInput(i.raw, i.label)}>{i.label}</button>
+              {/each}
+            </div>
+          </Section>
+        {/if}
       </div>
     </div>
 
@@ -235,6 +246,12 @@
 {/snippet}
 
 <style>
+  .inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+  }
   .page {
     max-width: 1180px;
   }

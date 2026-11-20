@@ -30,7 +30,7 @@ function controls(v: Record<string, number>, pbp: boolean): ControlView[] {
     c({ id: "volume", label: "Volume", group: "sound", kind: "range", min: 0, max: 100 }),
     c({ id: "mute", label: "Mute", group: "sound", kind: "choice", choices: [{ raw: 1, label: "Muted" }, { raw: 2, label: "Unmuted" }] }),
     c({ id: "ai-sound", label: "AI Sound", group: "sound", kind: "choice", choices: [{ raw: 1, label: "Off" }, { raw: 2, label: "On" }] }),
-    c({ id: "input", label: "Input", group: "info", kind: "choice", enabled: false, reason: "Changing this could disconnect nubless from your monitor, so it stays with the monitor's own menu.", choices: [{ raw: 15, label: "DisplayPort" }] }),
+    c({ id: "input", label: "Input", group: "info", kind: "choice", enabled: false, reason: "What your monitor reports. It reads the same on DisplayPort and USB-C, so it isn't used to switch inputs.", choices: [{ raw: 15, label: "DisplayPort or USB-C" }] }),
     c({ id: "firmware", label: "Firmware", group: "info", kind: "info", enabled: false, reason: INFO }),
     c({ id: "usage-hours", label: "Usage time (hours)", group: "info", kind: "info", enabled: false, reason: UNMAPPED }),
   ];
@@ -101,6 +101,8 @@ export function previewBackend() {
   let connected = new URLSearchParams(location.search).get("preview") !== "empty";
   let features: FeatureState = { ai_scene_optimization: false, ai_picture_mode: false, my_display_preset: false, pbp: false, hdr: false, picture_mode_blocks_ai: false };
   const AI_MODES = ["Personalized Picture", "Gamer 1", "Gamer 2", "FPS"];
+  /** LG side-channel inputs (INPUT_SWITCH in nubless-core's 27GM950B profile). */
+  const INPUTS = [{ raw: 0xd0, label: "DisplayPort" }, { raw: 0xd1, label: "USB-C" }, { raw: 0x90, label: "HDMI 1" }, { raw: 0x91, label: "HDMI 2" }];
   let picture = "Personalized Picture";
   let refreshing = false;
   const history: [string, number][] = [];
@@ -130,6 +132,7 @@ export function previewBackend() {
     error: null,
     version: "0.1.1",
     refreshing,
+    inputs: connected ? INPUTS : [],
   });
   const emit = () => listeners.forEach((l) => l(state()));
 
@@ -221,6 +224,12 @@ export function previewBackend() {
       features = { ...features, ai_scene_optimization: false, ai_picture_mode: false, my_display_preset: false };
       emit();
       return { state: state(), toast: "Your original settings are back", undoable: false };
+    },
+    async switchInput(value: number): Promise<Outcome> {
+      await wait(300);
+      const input = INPUTS.find((i) => i.raw === value);
+      if (!input) throw `0x${value.toString(16).toUpperCase()} isn't an input nubless knows on the 27GM950B`;
+      return { state: state(), toast: `Switching to ${input.label}. If the picture doesn't change in a few seconds, press it again.`, undoable: false };
     },
     async getHotkeys() { return hotkeysView(); },
     async setHotkeys(enabled: boolean, b: Record<HotkeyAction, string>) {

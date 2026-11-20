@@ -194,6 +194,25 @@ impl<T: Transport> Controller<T> {
         self.policy = policy;
     }
 
+    /// Whether this monitor can be switched between inputs from here: the
+    /// profile knows how, and the link can send LG's side-channel write.
+    pub fn can_switch_input(&self) -> bool {
+        self.profile.input_switch.is_some() && self.transport.can_switch_input()
+    }
+
+    /// Switch the monitor to `value`, one of the profile's `input_switch` inputs.
+    /// Sent once, without retries: a failed send may still have reached the
+    /// monitor, and the screen is the only check. Nothing is journaled, because
+    /// the input it came from can't be read, so there is nothing to undo to. The
+    /// way back is another switch, which works from a computer whose picture
+    /// isn't showing, or the monitor's own menu.
+    pub fn switch_input(&mut self, value: u16) -> Result<&'static str, ControlError> {
+        let switch = safety::check_input_switch(self.profile, value)?;
+        self.pace();
+        self.transport.switch_input(&switch)?;
+        Ok(switch.label())
+    }
+
     pub fn control(&self, id: &str) -> Result<&'static Control, ControlError> {
         self.profile
             .control(id)
@@ -656,6 +675,71 @@ mod tests {
         assert!(!a.needs_confirmation);
         assert_eq!(c.read("brightness").unwrap().current, 40);
         assert_eq!(c.journal().entries[0].state, EntryState::Applied);
+    }
+
+    #[test]
+    fn switch_input_goes_out_on_lgs_side_channel_and_is_not_journaled() {
+        let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Safe);
+        assert!(c.can_switch_input());
+        assert_eq!(c.switch_input(0x90).unwrap(), "HDMI 1");
+        assert_eq!(c.transport.side_writes, vec![(0x50, 0xF4, 0x90)]);
+        assert_eq!(c.transport.showing, 0x90);
+        // Nothing on the standard channel, and nothing to undo.
+        assert!(c.transport.writes.is_empty());
+        assert!(c.journal().entries.is_empty());
+        assert!(matches!(c.undo_last(), Err(ControlError::NothingToUndo)));
+    }
+
+    #[test]
+    fn switch_input_refuses_unknown_inputs_before_sending() {
+        let mut c = ctl(MockMonitor::gm950b(), WritePolicy::Experimental);
+        assert!(matches!(
+            c.switch_input(0xD2),
+            Err(ControlError::Safety(SafetyError::UnknownInput { .. }))
+        ));
+        assert!(c.transport.side_writes.is_empty());
+    }
+
+    #[test]
+    fn switch_input_is_sent_once_even_when_it_fails() {
+        let mut m = MockMonitor::gm950b();
+        m.faults.fail_writes = 1;
+        let mut c = ctl(m, WritePolicy::Safe);
+        assert!(matches!(
+            c.switch_input(0xD1),
+            Err(ControlError::Transport(_))
+        ));
+        assert_eq!(c.transport.side_writes.len(), 1, "no automatic retry");
+        assert_eq!(c.transport.showing, 0xD0);
+    }
+
+    #[test]
+    fn switch_input_is_unavailable_on_links_without_the_side_channel() {
+        struct NoSideChannel(MockMonitor);
+        impl Transport for NoSideChannel {
+            fn capabilities(&mut self) -> Result<String, TransportError> {
+                self.0.capabilities()
+            }
+            fn get_vcp(&mut self, code: u8) -> Result<VcpReading, TransportError> {
+                self.0.get_vcp(code)
+            }
+            fn set_vcp(&mut self, w: &safety::ValidatedWrite) -> Result<(), TransportError> {
+                self.0.set_vcp(w)
+            }
+        }
+        let mut c = Controller::new(
+            NoSideChannel(MockMonitor::gm950b()),
+            &PROFILE,
+            WritePolicy::Safe,
+            Timing::instant(),
+            Journal::in_memory(),
+        )
+        .unwrap();
+        assert!(!c.can_switch_input());
+        assert!(matches!(
+            c.switch_input(0xD0),
+            Err(ControlError::Transport(TransportError::Unsupported(_)))
+        ));
     }
 
     #[test]

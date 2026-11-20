@@ -27,7 +27,7 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | **Sound** | Sound Out | H/P out, internal speaker | ○ | Probe diff |
 | | Bass Boost | on / off | ○ | Probe diff |
 | | Volume | slider | ✔ read · Labs write `0x62` | Test card |
-| **Input** | Input List | HDMI 1, HDMI 2, DisplayPort, USB-C | ◐ `0x60` reads `0x0F` on DP **and** USB-C, so it can't tell them apart (`0x10` = USB-C was a guess and is wrong for reads); writing it stays **blocked**. Switching works over LG's side channel, `0xF4` via `0x50`: DP `0xD0`, USB-C `0xD1`, HDMI 1 `0x90`, HDMI 2 `0x91`, all confirmed with a real source ([`11-macos-and-input-switching.md`](11-macos-and-input-switching.md)) | Build a write-confirmed switch-input control on `0xF4` |
+| **Input** | Input List | HDMI 1, HDMI 2, DisplayPort, USB-C | ◐ `0x60` reads `0x0F` on DP **and** USB-C, so it can't tell them apart (`0x10` = USB-C was a guess and is wrong for reads); writing it stays **blocked**. Switching works over LG's side channel, `0xF4` via `0x50`: DP `0xD0`, USB-C `0xD1`, HDMI 1 `0x90`, HDMI 2 `0x91`, all confirmed with a real source ([`11-macos-and-input-switching.md`](11-macos-and-input-switching.md)). In nubless: `nubless switch-input` and the app's Input section (Apple Silicon Macs) | Windows and Linux support |
 | | Aspect Ratio | Full Wide, Original, Just Scan | ◐ `0xF5` reads 1 = Full Wide; the monitor declares four values (`01 02 03 04`) | Read `0xF5` in each |
 | | Auto Input Switch | on / off | ○ | Probe diff |
 | **General** | Hexagon Lighting | Static 1 (purple), Static 2 (red), Static 3 (cyan), Static 4 (white), Cycling, Off | ○ (possibly not on the DDC/CI channel at all) | Probe diff |

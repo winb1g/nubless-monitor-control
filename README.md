@@ -40,6 +40,7 @@ nubless replaces the monitor's on-screen menu (OSD) with an app on your desktop.
 - **Picture** – brightness, contrast, and all eight picture modes
 - **Smart features** – with LG's own interlocks, so incompatible features never collide
 - **Gaming and sound controls** – Response Time, Adaptive-Sync, Motion Blur Reduction and volume are confirmed on hardware
+- **Switch inputs** – DisplayPort, USB-C, HDMI 1 and HDMI 2, over LG's own side channel (Apple Silicon Macs for now)
 - **Tray popover** – quick brightness and picture mode from the system tray
 - **Keyboard shortcuts** – global and rebindable
 - **Two or more monitors** – each keeps its own settings, original settings and undo; pick one, or link them to change all together
@@ -102,6 +103,7 @@ nubless get                           # read every control
 nubless set brightness 60             # change one (read back, journaled)
 nubless undo                          # undo the last change
 nubless snapshot restore --baseline   # put back what you had before nubless
+nubless switch-input hdmi-1          # switch inputs (asks first; Apple Silicon Macs for now)
 nubless controls                      # what each control is, how sure we are, and why
 nubless --mock get                    # a simulated 27GM950B, no hardware needed
 nubless --experimental set adaptive-sync basic   # asks "Keep this change?", reverts in 5 s

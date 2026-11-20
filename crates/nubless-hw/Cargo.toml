@@ -19,3 +19,10 @@ ddc-hi = { version = "0.4.1", default-features = false, features = ["ddc-winapi"
 [target.'cfg(windows)'.dependencies]
 ddc-winapi = "0.2.2"
 winapi = { version = "0.3.9", features = ["minwindef", "windef", "winerror", "wingdi", "winreg", "winuser", "physicalmonitorenumerationapi"] }
+
+# Apple Silicon: LG's input switch needs a write with sender address 0x50, which
+# the ddc crates can't send (src/side_channel.rs). Same versions ddc-macos uses.
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+io-kit-sys = "0.4"

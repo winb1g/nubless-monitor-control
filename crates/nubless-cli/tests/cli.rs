@@ -400,3 +400,37 @@ fn one_display_commands_refuse_all() {
     assert!(!r.ok && r.err.contains("--monitor"), "{}", r.err);
     assert!(!three(&["--all", "--monitor", "1", "get"], Stdin::Closed).ok);
 }
+
+#[test]
+fn switch_input_asks_first_and_says_the_monitor_wont_confirm() {
+    let r = nubless(&["--mock", "switch-input", "hdmi-1"], Stdin::Line("y\n"));
+    assert!(r.ok, "{}", r.err);
+    assert!(r.out.contains("to HDMI 1?"), "{}", r.out);
+    assert!(r.out.contains("Sent: switch to HDMI 1."), "{}", r.out);
+    assert!(r.out.contains("run this again"), "{}", r.out);
+}
+
+#[test]
+fn switch_input_sends_nothing_unless_told_yes() {
+    for stdin in [Stdin::Line("n\n"), Stdin::Closed] {
+        let r = nubless(&["--mock", "switch-input", "usb-c"], stdin);
+        assert!(r.ok, "{}", r.err);
+        assert!(r.out.contains("Nothing was sent."), "{}", r.out);
+        assert!(!r.out.contains("Sent:"), "{}", r.out);
+    }
+}
+
+#[test]
+fn switch_input_takes_short_names_and_refuses_unknown_ones() {
+    let r = nubless(&["--mock", "switch-input", "DP", "--yes"], Stdin::Closed);
+    assert!(r.ok, "{}", r.err);
+    assert!(r.out.contains("Sent: switch to DisplayPort."), "{}", r.out);
+    let r = nubless(&["--mock", "switch-input", "vga", "--yes"], Stdin::Closed);
+    assert!(!r.ok);
+    assert!(
+        r.err
+            .contains("use one of: displayport, usb-c, hdmi-1, hdmi-2"),
+        "{}",
+        r.err
+    );
+}

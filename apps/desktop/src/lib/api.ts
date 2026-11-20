@@ -20,6 +20,8 @@ type Backend = {
   undo(monitor: string | null): Promise<Outcome>;
   revertControl(id: string, value: number, monitor: string | null): Promise<Outcome>;
   resetOriginal(monitor: string | null): Promise<Outcome>;
+  /** Switch the monitor's input. The monitor doesn't confirm it; never undoable. */
+  switchInput(value: number, monitor: string | null): Promise<Outcome>;
   getHotkeys(): Promise<HotkeysView>;
   setHotkeys(enabled: boolean, bindings: Record<HotkeyAction, string>): Promise<HotkeysView>;
   getAutostart(): Promise<boolean>;
@@ -51,6 +53,7 @@ async function tauriBackend(): Promise<Backend> {
     undo: (monitor) => invoke("undo", { monitor }),
     revertControl: (id, value, monitor) => invoke("revert_control", { id, value, monitor }),
     resetOriginal: (monitor) => invoke("reset_original", { monitor }),
+    switchInput: (value, monitor) => invoke("switch_input", { value, monitor }),
     getHotkeys: () => invoke("get_hotkeys"),
     setHotkeys: (enabled, bindings) => invoke("set_hotkeys", { enabled, bindings }),
     getAutostart: () => invoke("get_autostart"),
