@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 nubless-core.workspace = true
+ddc = "0.2.2"
 # NVAPI is left out on purpose: it exposes the same monitor a second time over raw
 # I2C, and two paths to one monitor defeat the one-message-at-a-time pacing.
 ddc-hi = { version = "0.4.1", default-features = false, features = ["ddc-winapi", "ddc-i2c", "ddc-macos"] }

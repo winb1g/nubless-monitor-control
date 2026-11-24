@@ -641,7 +641,8 @@ impl Worker {
                         .name
                         .clone()
                         .unwrap_or_else(|| "Other display".into()),
-                    detail: display.description.clone(),
+                    // Why it isn't supported, for the tooltip and bug reports.
+                    detail: format!("{} · {}", display.description, display.evidence()),
                     port,
                     supported: false,
                     selected: false,

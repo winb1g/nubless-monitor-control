@@ -323,7 +323,8 @@ pub const PROFILE: Profile = Profile {
     model: "27GM950B",
     identity: Identity {
         edid_manufacturer: "GSM",
-        edid_product_codes: &[0x5CF8],
+        // DisplayPort, HDMI: LG gives each input its own EDID product code.
+        edid_product_codes: &[0x5CF8, 0x5CF7],
         edid_names: &["LG ULTRAGEAR+"],
         caps_model: "WK95U",
         vcp_fingerprint: &[
@@ -404,6 +405,11 @@ mod tests {
             id.matches(Some("GSM"), Some(0x5CF8), None, None),
             Match::Edid
         );
+        // The same monitor on HDMI.
+        assert_eq!(
+            id.matches(Some("GSM"), Some(0x5CF7), None, None),
+            Match::Edid
+        );
         assert_eq!(
             id.matches(Some("GSM"), None, Some("LG ULTRAGEAR+ "), None),
             Match::Edid
@@ -420,6 +426,31 @@ mod tests {
         let mut other = caps.clone();
         other.vcp.remove(&0xF9);
         assert_eq!(id.matches(None, None, None, Some(&other)), Match::No);
+    }
+
+    /// Issue #6: the same monitor on HDMI shows an EDID with another product code.
+    #[test]
+    fn another_inputs_edid_still_identifies_it() {
+        use crate::profile::Match;
+        let id = &PROFILE.identity;
+        let caps = Capabilities::parse(CAPABILITIES_SAMPLE).unwrap();
+        // The name is the same on every input.
+        assert_eq!(
+            id.matches(Some("GSM"), Some(0x5CF9), Some("LG ULTRAGEAR+"), None),
+            Match::Edid
+        );
+        // No name in this EDID: the capabilities decide.
+        assert_eq!(
+            id.matches(Some("GSM"), Some(0x5CF9), None, Some(&caps)),
+            Match::Fingerprint
+        );
+        assert_eq!(id.matches(Some("GSM"), Some(0x5CF9), None, None), Match::No);
+        // Another maker, or no maker but a product code, is still another monitor.
+        assert_eq!(
+            id.matches(Some("DEL"), Some(0x5CF9), None, Some(&caps)),
+            Match::No
+        );
+        assert_eq!(id.matches(None, Some(0x5CF9), None, Some(&caps)), Match::No);
     }
 }
 
