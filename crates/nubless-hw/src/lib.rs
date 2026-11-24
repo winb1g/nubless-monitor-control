@@ -13,6 +13,20 @@ use nubless_core::safety::ValidatedWrite;
 use nubless_core::transport::{Transport, TransportError, VcpReading};
 
 mod os;
+mod twice;
+
+/// Call a `Ddc` method on a display's handle. On macOS it goes through
+/// [`twice::Twice`], which DisplayPort outputs need to answer at all.
+macro_rules! ddc {
+    ($handle:expr, $op:ident($($arg:expr),*)) => {
+        match &mut $handle {
+            #[cfg(target_os = "macos")]
+            ddc_hi::Handle::MacOS(m) => twice::Twice(m).$op($($arg),*).map_err(|e| e.to_string()),
+            #[allow(unreachable_patterns)]
+            h => h.$op($($arg),*).map_err(|e| e.to_string()),
+        }
+    };
+}
 
 /// What the OS says about a monitor, beyond its DDC/CI handle.
 #[derive(Debug, Clone, Default)]
@@ -105,7 +119,7 @@ fn identify(display: &mut Display, profile: &Profile) -> (Match, bool) {
         if attempt > 0 {
             std::thread::sleep(std::time::Duration::from_millis(300 * attempt as u64));
         }
-        let raw = display.handle.capabilities_string().ok()?;
+        let raw = ddc!(display.handle, capabilities_string()).ok()?;
         Capabilities::parse(&String::from_utf8_lossy(&raw)).ok()
     });
     let info = &display.info;
@@ -174,15 +188,12 @@ fn io(e: impl std::fmt::Display) -> TransportError {
 
 impl Transport for HwDisplay {
     fn capabilities(&mut self) -> Result<String, TransportError> {
-        let raw = self.display.handle.capabilities_string().map_err(io)?;
+        let raw = ddc!(self.display.handle, capabilities_string()).map_err(io)?;
         Ok(String::from_utf8_lossy(&raw).into_owned())
     }
 
     fn get_vcp(&mut self, code: u8) -> Result<VcpReading, TransportError> {
-        let v = self
-            .display
-            .handle
-            .get_vcp_feature(code)
+        let v = ddc!(self.display.handle, get_vcp_feature(code))
             .map_err(|_| TransportError::NoReply(code))?;
         Ok(VcpReading {
             current: v.value(),
@@ -191,9 +202,10 @@ impl Transport for HwDisplay {
     }
 
     fn set_vcp(&mut self, write: &ValidatedWrite) -> Result<(), TransportError> {
-        self.display
-            .handle
-            .set_vcp_feature(write.code(), write.value())
-            .map_err(io)
+        ddc!(
+            self.display.handle,
+            set_vcp_feature(write.code(), write.value())
+        )
+        .map_err(io)
     }
 }

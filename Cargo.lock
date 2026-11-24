@@ -2640,6 +2640,7 @@ dependencies = [
 name = "nubless-hw"
 version = "0.2.5"
 dependencies = [
+ "ddc",
  "ddc-hi",
  "ddc-winapi",
  "nubless-core",

@@ -103,8 +103,9 @@ pub fn displays() -> Vec<(Display, OsInfo)> {
             // (`IODisplayEDIDOriginal`). Without them, a monitor whose
             // capabilities read fails (as over some Mac HDMI ports) could only be
             // called unsupported (issue #6). CoreGraphics still knows who made
-            // it, which model and which unit, all read from that same EDID, and
-            // the product name macOS shows comes from it too.
+            // it, which model and which unit, all read from that same EDID. The
+            // name it shows is left out: it is the one set in System Settings,
+            // which can be renamed to anything.
             #[allow(irrefutable_let_patterns)]
             if let ddc_hi::Handle::MacOS(m) = &d.handle {
                 let cg = m.handle();
@@ -117,9 +118,6 @@ pub fn displays() -> Vec<(Display, OsInfo)> {
                 }
                 if info.serial.is_none() {
                     info.serial = Some(cg.serial_number()).filter(|&s| s != 0);
-                }
-                if info.model_name.is_none() {
-                    info.model_name = m.product_name();
                 }
             }
             let mut os = from_edid(

@@ -323,7 +323,8 @@ pub const PROFILE: Profile = Profile {
     model: "27GM950B",
     identity: Identity {
         edid_manufacturer: "GSM",
-        edid_product_codes: &[0x5CF8],
+        // DisplayPort, HDMI: LG gives each input its own EDID product code.
+        edid_product_codes: &[0x5CF8, 0x5CF7],
         edid_names: &["LG ULTRAGEAR+"],
         caps_model: "WK95U",
         vcp_fingerprint: &[
@@ -402,6 +403,11 @@ mod tests {
         let caps = Capabilities::parse(CAPABILITIES_SAMPLE).unwrap();
         assert_eq!(
             id.matches(Some("GSM"), Some(0x5CF8), None, None),
+            Match::Edid
+        );
+        // The same monitor on HDMI.
+        assert_eq!(
+            id.matches(Some("GSM"), Some(0x5CF7), None, None),
             Match::Edid
         );
         assert_eq!(
