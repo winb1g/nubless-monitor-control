@@ -12,6 +12,7 @@ This file is the contract. A change that weakens any rule below needs a very goo
 | Only codes in the model profile can be written; only if `writable`; only if the evidence is good enough for the active policy; only if the monitor declares the code; only values from the profile's range or list. | `safety::check_write`, `profile::WritePolicy::allows` |
 | Default policy: standard MCCS codes need a read-back match with LG's UI; LG-private codes need a recorded write round-trip. `--experimental` lowers that to "strong" evidence, never lower. | `WritePolicy` |
 | No raw "write any VCP code" command exists. | CLI has none, by design |
+| Only the standard host address `0x51`. **Never send anything from `0x50`**, LG's service/factory channel, not even a "read": there the monitor doesn't treat a Get VCP request as one. A read-only-looking scan from `0x50` (2026-11-26, HDMI, fw 3.05) got internal data back from about code `0xCE` on, then the screen dimmed and the monitor stopped responding until it was restarted. | `nubless-hw` uses `ddc-hi`, which always sends from `0x51` |
 | Firmware updates: never. | not implemented, not planned |
 
 ## 2. Never let the settings get into a mess
