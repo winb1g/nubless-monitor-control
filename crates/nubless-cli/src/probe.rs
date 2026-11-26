@@ -20,6 +20,21 @@ const SKIP: &[u8] = &[
     0x04, 0x05, 0x06, 0x08, 0x0A, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xEB,
 ];
 
+/// Codes that change on their own or with any OSD change, so a diff that shows
+/// them says nothing about the setting you changed.
+const NOISY: &[(u8, &str)] = &[
+    // The high byte goes up by one with every OSD change, whatever the setting
+    // (FF, 00, 01, ... seen while stepping Local Dimming; fw 3.05, 2026-11-26).
+    (0xAF, "changes with every OSD change; ignore"),
+    (0xC0, "usage hours; ignore"),
+];
+
+/// Every code except the factory and calibration ones, for hunting a setting
+/// the monitor doesn't declare. Unanswered codes are simply left out.
+pub fn all_codes() -> Vec<u8> {
+    (0x00..=0xFFu8).filter(|c| !SKIP.contains(c)).collect()
+}
+
 pub fn codes<T: Transport>(ctl: &Controller<T>) -> Vec<u8> {
     let mut v: Vec<u8> = ctl
         .capabilities()
@@ -51,8 +66,18 @@ fn name<T: Transport>(ctl: &Controller<T>, code: u8) -> String {
         .unwrap_or_default()
 }
 
-pub fn save<T: Transport>(ctl: &mut Controller<T>, path: &std::path::Path) -> std::io::Result<()> {
-    let list = codes(ctl);
+pub fn save<T: Transport>(
+    ctl: &mut Controller<T>,
+    path: &std::path::Path,
+    all: bool,
+) -> std::io::Result<()> {
+    let list = if all {
+        println!("Reading every code; this can take a minute or two.");
+        let _ = std::io::stdout().flush();
+        all_codes()
+    } else {
+        codes(ctl)
+    };
     let values: BTreeMap<String, u16> = read_all(ctl, &list)
         .into_iter()
         .map(|(c, v)| (format!("0x{c:02X}"), v))
@@ -67,7 +92,11 @@ pub fn diff<T: Transport>(
     path: &std::path::Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let before: BTreeMap<String, u16> = serde_json::from_str(&std::fs::read_to_string(path)?)?;
-    let list = codes(ctl);
+    // Read back exactly the codes the file has, so a `save --all` diffs in full.
+    let list: Vec<u8> = before
+        .keys()
+        .filter_map(|k| u8::from_str_radix(k.trim_start_matches("0x"), 16).ok())
+        .collect();
     let now = read_all(ctl, &list);
     let mut changed = 0;
     for (code, v) in &now {
@@ -75,8 +104,12 @@ pub fn diff<T: Transport>(
         if let Some(old) = before.get(&key) {
             if old != v {
                 changed += 1;
+                let note = NOISY
+                    .iter()
+                    .find(|(c, _)| c == code)
+                    .map_or(String::new(), |(_, n)| format!("  ({n})"));
                 println!(
-                    "{key:<6} {:<18} {old:>6} (0x{old:04X}) -> {v:>6} (0x{v:04X})",
+                    "{key:<6} {:<18} {old:>6} (0x{old:04X}) -> {v:>6} (0x{v:04X}){note}",
                     name(ctl, *code)
                 );
             }

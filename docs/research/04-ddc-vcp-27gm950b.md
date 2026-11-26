@@ -69,7 +69,7 @@ Re-read on 2026-10-18 with `tools/vcp-read.ps1`. "Value meaning" uses LG's own e
 | `0xEC` | `SMARTRESOLUTION` | 1 | unknown | n/a |
 | `0xFB` | `SCALER_ISP_AREA` | 1 (max 15) | unknown | n/a |
 | `0xE4`–`0xEB` | `CALIBATION_COMMAND`, `GETGAMMA_FROM_SCALER`, `WRITE_GAMMA_LUT`, `WRITE_COLOR_MATRIX`, scaler enable/pattern, `WRITE_NEW_COLOR_MATRIX` | 0 / … | **calibration write channel: never touch** | n/a |
-| `0xAF`, `0xA1`, `0xA2` | `MONITOR_MODEL_NAME`, `GET_MONITOR_ID_EXTENDED(_2)` | `0xFF00`, `0xD098`, `0x4800` | model name likely arrives through a table/multi-byte read, not a single value | n/a |
+| `0xAF`, `0xA1`, `0xA2` | `MONITOR_MODEL_NAME`, `GET_MONITOR_ID_EXTENDED(_2)` | `0xFF00`, `0xD098`, `0x4800` | model name likely arrives through a table/multi-byte read, not a single value. `0xAF`'s high byte goes up by one with every OSD change (fw 3.05, 2026-11-26; [10](10-osd-inventory.md)) | n/a |
 | `0x47`, `0xE0`, `0xE1`, `0xED`, `0xF0`, `0xF1`, `0xFC` | various `MANUFACTURER_*` | no answer | not supported on this monitor | n/a |
 
 These matches are strong evidence (name **and** value agree with the UI for `0xF8`, `0xF9`, `0x4E`/`0x4F`, `0xB1`) but **no write has been performed**. Confirm each with `vcp-diff` before trusting a value table.

@@ -400,3 +400,23 @@ fn one_display_commands_refuse_all() {
     assert!(!r.ok && r.err.contains("--monitor"), "{}", r.err);
     assert!(!three(&["--all", "--monitor", "1", "get"], Stdin::Closed).ok);
 }
+
+#[test]
+fn probe_save_all_reads_every_code_and_diff_reads_back_what_was_saved() {
+    let dir = std::env::temp_dir().join(format!("nubless-probe-all-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("all.json");
+    let f = file.to_str().unwrap();
+    let r = mock(&["probe", "save", "--all", f]);
+    assert!(r.ok, "{}", r.err);
+    let saved: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+    assert!(
+        saved.contains_key("0x10") && saved.contains_key("0xC9"),
+        "{saved:?}"
+    );
+    assert!(!saved.contains_key("0x04"), "factory codes are never read");
+    let r = mock(&["probe", "diff", f]);
+    assert!(r.ok && r.out.contains("No changes."), "{}{}", r.out, r.err);
+    let _ = std::fs::remove_dir_all(&dir);
+}

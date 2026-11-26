@@ -22,7 +22,7 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | | Contrast | slider | ✔ `0x12` | Test card |
 | | Sharpness | slider | ○ (standard `0x87` is **not** in the capabilities string) | Probe diff |
 | | Color Temp | Custom, Warm, Medium, Cool, Manual (0–100) | ◐ `0x69` reads 6500; `0x14` reads a non-standard value | Probe diff per option, and the Manual slider |
-| | Local Dimming | High, Middle, Low, Off | ○ | Probe diff |
+| | Local Dimming | High, Middle, Low, Off | ⛔ **not exposed to a computer**: no readable code tracks it, LG Switch has no control for it, and the `0x50` service channel is unsafe ([`11-local-dimming.md`](11-local-dimming.md), fw 3.05, 2026-11-26) | Menu only. Check whether each picture mode keeps its own level |
 | | Picture Reset | no / yes | ⛔ | never |
 | **Sound** | Sound Out | H/P out, internal speaker | ○ | Probe diff |
 | | Bass Boost | on / off | ○ | Probe diff |
@@ -32,7 +32,14 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | | Auto Input Switch | on / off | ○ | Probe diff |
 | **General** | Hexagon Lighting | Static 1 (purple), Static 2 (red), Static 3 (cyan), Static 4 (white), Cycling, Off | ○ (possibly not on the DDC/CI channel at all) | Probe diff |
 
-Also declared by the monitor but not matched to any OSD setting: `0xF6` (values `00 01 02`), `0xFA` (`00 01`, read 2), `0xFD` (`00 01`), `0xFE` (`00 01 02`). They are the first candidates for Local Dimming, Bass Boost, Auto Input Switch and similar; the probe diffs below settle it.
+Also declared by the monitor but not matched to any OSD setting: `0xF6` (values `00 01 02`), `0xFA` (`00 01`, read 2), `0xFD` (`00 01`), `0xFE` (`00 01 02`). They are the first candidates for Bass Boost, Auto Input Switch and similar (not Local Dimming: see [`11`](11-local-dimming.md)); the probe diffs below settle it.
+
+**`0xAF` counts OSD changes.** Its high byte goes up by one with every change made in the menu, whatever the setting (`FF`, `00`, `01`, … wrapping), and the low byte stays `00`. Stepping Local Dimming Off → Low → Middle → High → Off → Low → Off → Low read `FF`, `00`, `01`, `02`, `03`, (`04`), `04`, `05` (fw 3.05, 2026-11-26). LG Switch names the code `MONITOR_MODEL_NAME` ([`08`](08-lg-opcode-and-enum-tables.md)). `nubless probe diff` marks it as noise.
+
+**Local Dimming isn't in LG Switch either** (static analysis of LG Switch 7.60.0.0, 2026-11-26). No opcode, enum member, sub-command, webOS setting key or resource names it. The DDC layer (`LGProtocolEngine.dll`) only builds standard MCCS Get/Set VCP frames from host address `0x51` to `0x6E`, with no remap table, so LG Switch never uses the `0x50` service channel. Still open: only a newer LG app that lists the 27GM950B.
+
+> [!CAUTION]
+> **Don't probe LG's `0x50` service channel.** A scan that sent standard Get VCP requests from host address `0x50` (2026-11-26, Linux over HDMI, fw 3.05) never got a single VCP reply (`6E 88 02 …`). From the first code it returned a repeating stream that looks like internal memory (with the model name `27GM950B` in ASCII), from `0xCE` a short `BE <code> …` acknowledgement, from `0xF8` only `0xFF`. The screen dimmed and the monitor stopped responding until it was restarted. On that channel a "read" is not a read. The script is gone; see [`SAFETY.md`](../../SAFETY.md).
 
 ## How to map one (read-only, safe)
 
@@ -43,5 +50,7 @@ nubless probe save before.json
 # change ONE setting in the OSD (for example Local Dimming: Off -> High)
 nubless probe diff before.json
 ```
+
+If a setting moves nothing but `0xAF`, it isn't in the codes `probe` reads by default: save with `nubless probe save --all before.json` (every code from `0x00` to `0xFF` except the factory and calibration ones; a minute or two) and diff against that.
 
 For a setting with several options, repeat per option and write down the code, the option name and the raw value. Put the result in the PR as a test card (see [`../mapping-guide.md`](../mapping-guide.md)). Nothing is written to the monitor, so this is the lowest-risk way to move a control from ○ to ◐.
