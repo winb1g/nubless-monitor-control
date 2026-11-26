@@ -60,11 +60,15 @@ const HOTKEY_LABELS: Record<HotkeyAction, [string, string]> = {
   "next-picture-mode": ["Next picture mode", "Ctrl+Alt+End"],
 };
 
-const FAIL_VRR = typeof location !== "undefined" && new URLSearchParams(location.search).get("preview") === "fail-vrr";
+const PREVIEW = typeof location !== "undefined" ? new URLSearchParams(location.search).get("preview") : null;
+const FAIL_VRR = PREVIEW === "fail-vrr";
+/** Show the macOS-only settings on a Mac, or anywhere with `?preview=mac`. */
+const MAC = PREVIEW === "mac" || (typeof navigator !== "undefined" && navigator.platform.startsWith("Mac"));
 
 export function previewBackend() {
   let autostart = false;
   let autoUpdate = true;
+  let dockIcon = true;
   let hotkeys = {
     enabled: true,
     bindings: Object.fromEntries(Object.entries(HOTKEY_LABELS).map(([a, [, k]]) => [a, k])) as Record<HotkeyAction, string>,
@@ -232,6 +236,8 @@ export function previewBackend() {
     async setAutostart(on: boolean) { await wait(200); autostart = on; return autostart; },
     async getAutoUpdate() { return autoUpdate; },
     async setAutoUpdate(on: boolean) { await wait(200); autoUpdate = on; return autoUpdate; },
+    async getDockIcon() { return MAC ? dockIcon : null; },
+    async setDockIcon(on: boolean) { await wait(200); dockIcon = on; return dockIcon; },
     async setUpdateAvailable() {},
     async openMain() {},
     async quit() {},

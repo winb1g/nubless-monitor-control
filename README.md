@@ -40,7 +40,7 @@ nubless replaces the monitor's on-screen menu (OSD) with an app on your desktop.
 - **Picture** – brightness, contrast, and all eight picture modes
 - **Smart features** – with LG's own interlocks, so incompatible features never collide
 - **Gaming and sound controls** – Response Time, Adaptive-Sync, Motion Blur Reduction and volume are confirmed on hardware
-- **Tray popover** – quick brightness and picture mode from the system tray
+- **Tray popover** – quick brightness and picture mode from the system tray (on macOS, a monochrome menu-bar icon, and you can hide the Dock icon)
 - **Keyboard shortcuts** – global and rebindable
 - **Two or more monitors** – each keeps its own settings, original settings and undo; pick one, or link them to change all together
 - **Start at login**, light and dark themes, and one-click updates

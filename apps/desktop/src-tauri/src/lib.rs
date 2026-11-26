@@ -270,14 +270,90 @@ fn set_auto_update(on: bool) -> Result<bool, String> {
     Ok(on)
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+struct DockPrefs {
+    show_in_dock: bool,
+}
+
+impl Default for DockPrefs {
+    fn default() -> Self {
+        DockPrefs { show_in_dock: true }
+    }
+}
+
+fn dock_prefs_path() -> std::path::PathBuf {
+    nubless_core::paths::state_dir().join("dock.json")
+}
+
+fn load_dock_prefs() -> DockPrefs {
+    std::fs::read_to_string(dock_prefs_path())
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+/// macOS only: a menu-bar-only app has no Dock icon and isn't in Cmd+Tab.
+/// The window still opens from the menu bar icon.
+#[cfg(target_os = "macos")]
+fn apply_dock(app: &AppHandle, show: bool) -> tauri::Result<()> {
+    app.set_activation_policy(if show {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    })?;
+    // Changing the policy can send the window behind other apps; bring it back.
+    if app
+        .get_webview_window("main")
+        .is_some_and(|w| w.is_visible().unwrap_or(false))
+    {
+        show_main(app);
+    }
+    Ok(())
+}
+
+/// Whether nubless shows a Dock icon; `None` where there is no Dock.
+#[tauri::command]
+fn get_dock_icon() -> Option<bool> {
+    cfg!(target_os = "macos").then(|| load_dock_prefs().show_in_dock)
+}
+
+#[tauri::command]
+fn set_dock_icon(app: AppHandle, on: bool) -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    apply_dock(&app, on).map_err(|e| format!("Couldn't change the Dock icon: {e}"))?;
+    #[cfg(not(target_os = "macos"))]
+    let _ = &app;
+    let path = dock_prefs_path();
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let json =
+        serde_json::to_string_pretty(&DockPrefs { show_in_dock: on }).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| format!("Couldn't save this setting: {e}"))?;
+    Ok(on)
+}
+
 /// The tray's menu entry and plain icon, kept so an available update can swap them.
 struct TrayUpdate {
     item: MenuItem<tauri::Wry>,
     icon: tauri::image::Image<'static>,
+    /// A macOS template icon: only its shape is drawn, in the menu bar's colour.
+    template: bool,
 }
 
-/// `icon` with a green pip in its bottom-right corner (RGBA in, RGBA out).
-fn with_pip(rgba: &[u8], w: u32, h: u32) -> Vec<u8> {
+/// The macOS menu-bar icon: the logo as a black shape on transparent, so macOS
+/// can draw it in the menu bar's own colour (light, dark, or tinted).
+#[cfg(target_os = "macos")]
+const MENU_BAR_ICON: &[u8] = include_bytes!("../icons/tray-template.png");
+
+/// `icon` with a pip in its bottom-right corner (RGBA in, RGBA out): green with a
+/// dark ring, or for a template icon, where colour is ignored, a solid dot cut
+/// off from the shape by a clear gap.
+fn with_pip(rgba: &[u8], w: u32, h: u32, template: bool) -> Vec<u8> {
+    if template {
+        return with_template_pip(rgba, w, h);
+    }
     let mut out = rgba.to_vec();
     let size = w.min(h) as f32;
     let r = size * 0.24;
@@ -305,6 +381,30 @@ fn with_pip(rgba: &[u8], w: u32, h: u32) -> Vec<u8> {
     out
 }
 
+fn with_template_pip(rgba: &[u8], w: u32, h: u32) -> Vec<u8> {
+    let mut out = rgba.to_vec();
+    let size = w.min(h) as f32;
+    let r = size * 0.26;
+    let (cx, cy) = (w as f32 - r, h as f32 - r);
+    for y in 0..h {
+        for x in 0..w {
+            let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
+            let (gap, dot) = (
+                (r + 0.5 - d).clamp(0.0, 1.0),
+                (r * 0.62 + 0.5 - d).clamp(0.0, 1.0),
+            );
+            if gap == 0.0 {
+                continue;
+            }
+            let i = ((y * w + x) * 4) as usize;
+            let a = (out[i + 3] as f32 * (1.0 - gap)).max(dot * 255.0);
+            out[i..i + 3].copy_from_slice(&[0, 0, 0]);
+            out[i + 3] = a as u8;
+        }
+    }
+    out
+}
+
 /// Tell the tray whether an update is waiting: a green pip on the icon and a menu
 /// entry that names the version. `None` puts both back.
 #[tauri::command]
@@ -320,7 +420,7 @@ fn set_update_available(app: AppHandle, version: Option<String>) {
     let icon = if version.is_some() {
         let img = &parts.icon;
         tauri::image::Image::new_owned(
-            with_pip(img.rgba(), img.width(), img.height()),
+            with_pip(img.rgba(), img.width(), img.height(), parts.template),
             img.width(),
             img.height(),
         )
@@ -328,6 +428,7 @@ fn set_update_available(app: AppHandle, version: Option<String>) {
         parts.icon.clone()
     };
     let _ = tray.set_icon(Some(icon));
+    let _ = tray.set_icon_as_template(parts.template);
     let _ = tray.set_tooltip(Some(match &version {
         Some(v) => format!("nubless: update {v} available"),
         None => "nubless".to_string(),
@@ -509,6 +610,8 @@ pub fn run() {
             set_autostart,
             get_auto_update,
             set_auto_update,
+            get_dock_icon,
+            set_dock_icon,
             set_update_available,
             open_main,
             quit
@@ -522,18 +625,34 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit nubless", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(app, &[&open, &updates, &sep, &quit])?;
-            let bundled = app.default_window_icon().expect("bundle icon");
-            let icon = tauri::image::Image::new_owned(
-                bundled.rgba().to_vec(),
-                bundled.width(),
-                bundled.height(),
-            );
+            #[cfg(target_os = "macos")]
+            let (icon, template) = {
+                if !load_dock_prefs().show_in_dock {
+                    app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                }
+                (
+                    tauri::image::Image::from_bytes(MENU_BAR_ICON)?.to_owned(),
+                    true,
+                )
+            };
+            #[cfg(not(target_os = "macos"))]
+            let (icon, template) = {
+                let bundled = app.default_window_icon().expect("bundle icon");
+                let icon = tauri::image::Image::new_owned(
+                    bundled.rgba().to_vec(),
+                    bundled.width(),
+                    bundled.height(),
+                );
+                (icon, false)
+            };
             app.manage(TrayUpdate {
                 item: updates.clone(),
                 icon: icon.clone(),
+                template,
             });
             TrayIconBuilder::with_id("nubless")
                 .icon(icon)
+                .icon_as_template(template)
                 .tooltip("nubless")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -622,7 +741,7 @@ mod tests {
     fn the_pip_is_green_in_the_corner_and_leaves_the_rest_alone() {
         let (w, h) = (32u32, 32u32);
         let plain = vec![200u8; (w * h * 4) as usize];
-        let out = with_pip(&plain, w, h);
+        let out = with_pip(&plain, w, h, false);
         let px = |x: u32, y: u32| {
             let i = ((y * w + x) * 4) as usize;
             (out[i], out[i + 1], out[i + 2])
@@ -630,6 +749,22 @@ mod tests {
         assert_eq!(px(0, 0), (200, 200, 200));
         let (r, g, b) = px(26, 26);
         assert!(g > r && g > b, "expected green, got {:?}", (r, g, b));
+    }
+
+    #[test]
+    fn the_template_pip_is_a_dot_set_apart_from_the_shape() {
+        let (w, h) = (64u32, 64u32);
+        // A fully opaque shape, like the menu-bar logo's solid square.
+        let plain = vec![255u8; (w * h * 4) as usize];
+        let out = with_pip(&plain, w, h, true);
+        let alpha = |x: u32, y: u32| out[((y * w + x) * 4 + 3) as usize];
+        assert_eq!(alpha(0, 0), 255, "the rest of the shape is untouched");
+        assert_eq!(alpha(52, 52), 255, "the dot is solid");
+        // Between the dot and the shape there's a clear gap, so the dot stands out.
+        let r = 64.0 * 0.26;
+        let c = 64.0 - r;
+        let gap = (c - r * 0.82) as u32;
+        assert_eq!(alpha(gap, c as u32), 0, "a clear gap around the dot");
     }
 
     // The 5K screen from the bug report: work area starts below a 64 px bar.

@@ -16,6 +16,23 @@
   $effect(() => {
     api().then((b) => b.getAutostart()).then((on) => (autostart = on)).catch(() => {});
   });
+  // macOS only: `null` elsewhere, and the setting is hidden.
+  let dockIcon = $state<boolean | null>(null);
+  let dockBusy = $state(false);
+  $effect(() => {
+    api().then((b) => b.getDockIcon()).then((on) => (dockIcon = on)).catch(() => {});
+  });
+  async function setDockIcon(on: boolean) {
+    dockBusy = true;
+    try {
+      dockIcon = await (await api()).setDockIcon(on);
+    } catch (e) {
+      toast(String(e), "error");
+    } finally {
+      dockBusy = false;
+    }
+  }
+
   async function setAutostart(on: boolean) {
     autostartBusy = true;
     try {
@@ -42,6 +59,12 @@
     <Item title="Start at login" body="Open nubless quietly in the tray when you sign in, so your shortcuts are always ready.">
       <Toggle checked={autostart} pending={autostartBusy} label="Start at login" onchange={setAutostart} />
     </Item>
+
+    {#if dockIcon !== null}
+      <Item title="Show in Dock" body="Turn off to keep nubless in the menu bar only, out of the Dock and Cmd+Tab. Open the window from the menu bar icon.">
+        <Toggle checked={dockIcon} pending={dockBusy} label="Show in Dock" onchange={setDockIcon} />
+      </Item>
+    {/if}
 
     <Item title="Check for updates automatically" body="Look for a new version when nubless starts and every few hours, and show a green dot on the tray icon when one is ready. Nothing installs until you say so.">
       <Toggle checked={upd.auto} label="Check for updates automatically" onchange={(v) => setAutoUpdate(v).catch((e) => toast(String(e), "error"))} />

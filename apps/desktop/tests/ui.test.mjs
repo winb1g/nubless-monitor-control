@@ -432,3 +432,20 @@ test("Revert after switching monitors puts back the monitor the change was made 
   await page.clock.runFor(500);
   assert.equal(await segment("Response Time", "Fast").getAttribute("aria-pressed"), "true", "monitor 1 was put back");
 });
+
+test("Show in Dock is a macOS setting: hidden elsewhere, a working switch on a Mac", async () => {
+  await open();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("switch", { name: "Start at login" }).waitFor();
+  assert.equal(await page.getByRole("switch", { name: "Show in Dock" }).count(), 0, "no Dock off a Mac");
+  await ctx.close();
+
+  await open({ query: "?preview=mac" });
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Settings" }).click();
+  const dock = page.getByRole("switch", { name: "Show in Dock" });
+  await dock.waitFor();
+  assert.equal(await dock.getAttribute("aria-checked"), "true", "shown in the Dock by default");
+  await dock.click();
+  await page.clock.runFor(500);
+  assert.equal(await dock.getAttribute("aria-checked"), "false");
+});

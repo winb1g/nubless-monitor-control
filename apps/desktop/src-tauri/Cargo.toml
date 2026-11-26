@@ -19,7 +19,7 @@ nubless-core.workspace = true
 nubless-hw.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"

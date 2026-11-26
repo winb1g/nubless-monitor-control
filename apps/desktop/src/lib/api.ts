@@ -26,6 +26,9 @@ type Backend = {
   setAutostart(on: boolean): Promise<boolean>;
   getAutoUpdate(): Promise<boolean>;
   setAutoUpdate(on: boolean): Promise<boolean>;
+  /** macOS: whether nubless has a Dock icon. `null` on systems without a Dock. */
+  getDockIcon(): Promise<boolean | null>;
+  setDockIcon(on: boolean): Promise<boolean>;
   /** Green pip and "Update x available" in the tray; `null` clears them. */
   setUpdateAvailable(version: string | null): Promise<void>;
   openMain(page?: string): Promise<void>;
@@ -57,6 +60,8 @@ async function tauriBackend(): Promise<Backend> {
     setAutostart: (on) => invoke("set_autostart", { on }),
     getAutoUpdate: () => invoke("get_auto_update"),
     setAutoUpdate: (on) => invoke("set_auto_update", { on }),
+    getDockIcon: () => invoke("get_dock_icon"),
+    setDockIcon: (on) => invoke("set_dock_icon", { on }),
     setUpdateAvailable: (version) => invoke("set_update_available", { version }),
     openMain: (page) => invoke("open_main", { page: page ?? null }),
     quit: () => invoke("quit"),
