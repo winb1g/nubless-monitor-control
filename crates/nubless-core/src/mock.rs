@@ -80,6 +80,7 @@ impl MockMonitor {
             (0x62, v(20, 100)),
             (0x69, v(6500, 0xFFFF)),
             (0x8D, v(2, 2)),
+            (0xAF, v(0xFF00, 0xFFFF)),
             (0xB1, v(0x2200, 0xFFFF)),
             (0xC0, v(1000, 0xFFFF)), // placeholder, not a real unit's hours
             (0xC9, v(0x0305, 0xFFFF)),

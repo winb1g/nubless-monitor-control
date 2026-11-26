@@ -6,6 +6,7 @@ import type { AppState, ControlView, Feature, FeatureOutcome, FeatureState, Hotk
 
 const UNMAPPED = "Not mapped yet. We know where it lives, but not how it's encoded.";
 const INFO = "Information from your monitor.";
+const READ_ONLY = "Read from your monitor. Changing it from nubless hasn't been tested yet, so use the monitor's menu for now.";
 
 /** Controls that can hide the picture or resync the panel (Risk::Visibility / Resync in nubless-core). */
 const CONFIRM = ["contrast", "black-stabilizer", "response-time", "adaptive-sync"];
@@ -26,6 +27,7 @@ function controls(v: Record<string, number>, pbp: boolean): ControlView[] {
       { raw: 65, label: "Personalized Picture" }, { raw: 45, label: "Gamer 1" }, { raw: 46, label: "Gamer 2" }, { raw: 18, label: "Calibration1" },
       { raw: 19, label: "Calibration2" }, { raw: 6, label: "Color Weakness" }, { raw: 25, label: "DCI-P3" }, { raw: 30, label: "FPS" }] }),
     c({ id: "color-preset", label: "Color temperature", group: "picture", kind: "choice", choices: [{ raw: 3, label: "Warm" }, { raw: 5, label: "Medium" }, { raw: 9, label: "Cool" }, { raw: 11, label: "Custom" }, { raw: 65502, label: "Manual" }] }),
+    c({ id: "local-dimming", label: "Local Dimming", group: "picture", kind: "choice", enabled: false, reason: READ_ONLY, choices: [{ raw: 0xff00, label: "Off" }, { raw: 0, label: "Low" }, { raw: 0x100, label: "Middle" }, { raw: 0x200, label: "High" }] }),
     c({ id: "ai-upscaling", label: "AI Upscaling", group: "picture", kind: "choice", choices: [{ raw: 1, label: "Off" }, { raw: 2, label: "Low" }, { raw: 4, label: "High" }], ...(pbp ? { enabled: false, reason: "AI Upscaling is not available while PBP/PIP is on." } : {}) }),
     c({ id: "volume", label: "Volume", group: "sound", kind: "range", min: 0, max: 100 }),
     c({ id: "mute", label: "Mute", group: "sound", kind: "choice", choices: [{ raw: 1, label: "Muted" }, { raw: 2, label: "Unmuted" }] }),
@@ -88,7 +90,7 @@ export function previewBackend() {
       }),
     };
   };
-  const seed: Record<string, number> = { "ai-sound": 1, brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "motion-blur": 2, "ai-upscaling": 1, "color-preset": 11, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
+  const seed: Record<string, number> = { "ai-sound": 1, brightness: 80, contrast: 70, "black-stabilizer": 50, "response-time": 2, "adaptive-sync": 3, "motion-blur": 2, "ai-upscaling": 1, "color-preset": 11, "local-dimming": 0xff00, "picture-mode": 65, volume: 20, mute: 2, input: 15, firmware: 0x305, "usage-hours": 1000 };
   const original = { ...seed };
   // `?monitors=3` previews a desk of identical monitors, each with its own values.
   const count = Math.min(Math.max(Number(new URLSearchParams(location.search).get("monitors")) || 1, 1), 6);
