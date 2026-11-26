@@ -22,7 +22,7 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | | Contrast | slider | ✔ `0x12` | Test card |
 | | Sharpness | slider | ○ (standard `0x87` is **not** in the capabilities string) | Probe diff |
 | | Color Temp | Custom, Warm, Medium, Cool, Manual (0–100) | ◐ `0x69` reads 6500; `0x14` reads a non-standard value | Probe diff per option, and the Manual slider |
-| | Local Dimming | High, Middle, Low, Off | ○ not among the declared or known codes: stepping it only moved `0xAF`, which is a change counter (below) (fw 3.05, 2026-11-26) | `nubless probe save --all`, then diff |
+| | Local Dimming | High, Middle, Low, Off | ○ **not exposed over DDC/CI**: a full scan (`probe save --all`, 72 codes answer) moved only `0xAF`, the change counter (below), Off → High; LG Switch's tables have no Local Dimming opcode or `0xA6` sub-command either (fw 3.05, 2026-11-26) | Check whether each picture mode keeps its own level (then picture-mode switching covers it) |
 | | Picture Reset | no / yes | ⛔ | never |
 | **Sound** | Sound Out | H/P out, internal speaker | ○ | Probe diff |
 | | Bass Boost | on / off | ○ | Probe diff |
