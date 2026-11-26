@@ -19,8 +19,6 @@ Each item needs a person with the monitor. The exact commands and what to look f
 - [x] **AI Scene Optimization**, **AI Sound**, **AI Upscaling**: decoded from LG Switch as sub-commands 2, 6 and 4 on VCP 0xA6 ([research 09](research/09-ai-channel-and-picture-modes.md)).
 - [x] Turn on Labs and switch AI Scene Optimization and AI Sound from nubless once each, checking the OSD (first writes on 0xA6).
 - [x] AI Upscaling: Off 1, Low 2, High 4, read with the OSD on each (fw 3.05, 2026-10-30). The old 1-while-Off report was right. Written from nubless: Off, Low and High each matched the OSD (fw 3.05, 2026-10-30).
-- [x] **Local Dimming** `0xAF` (not declared in the capabilities string): Off 0xFF00, Low 0x0000, Middle 0x0100, High 0x0200, each read with `nubless probe diff` after setting it in the OSD; nothing else changed (fw 3.05, 2026-11-26, Windows).
-- [ ] Local Dimming: set it back to Off and confirm the diff is empty; check whether the level is kept per picture mode; then a first write from nubless (needs an exception to the declared-codes rule).
 - [ ] **Dual-Mode** `0xB1`: what does *Conversion* send? (Read-only until understood.)
 
 ## Motion Blur Reduction (needs Adaptive-Sync Off)

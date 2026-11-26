@@ -95,7 +95,7 @@ pub fn group_of(id: &str) -> &'static str {
     match id {
         "picture-mode" => "mode",
         "brightness" | "contrast" | "black-stabilizer" | "color-preset" | "color-temperature"
-        | "red-gain" | "green-gain" | "blue-gain" | "local-dimming" => "picture",
+        | "red-gain" | "green-gain" | "blue-gain" => "picture",
         "response-time" | "adaptive-sync" | "motion-blur" | "aspect-ratio" => "game",
         "volume" | "mute" | "ai-sound" => "sound",
         "ai-scene-optimization" => "smart",
@@ -117,12 +117,6 @@ pub fn lock_reason(
     }
     if matches!(c.kind, ValueKind::Info) && c.confidence >= Confidence::ReadConfirmed {
         return (Some("Information from your monitor."), None);
-    }
-    if !c.writable && c.confidence >= Confidence::ReadConfirmed {
-        return (
-            Some("Read from your monitor. Changing it from nubless hasn't been tested yet, so use the monitor's menu for now."),
-            None,
-        );
     }
     if WritePolicy::Experimental.allows(c) {
         return (

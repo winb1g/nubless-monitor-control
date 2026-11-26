@@ -123,7 +123,7 @@ Try it without the hardware: `npx tauri dev -- -- --demo=3` starts three simulat
 |---|---|
 | ✅ **Read and write** | Brightness and contrast (within safe ranges), Black Stabilizer, Response Time, Adaptive-Sync/VRR, Motion Blur Reduction (needs Adaptive-Sync Off), color temperature presets, AI Upscaling, volume, mute, all 8 picture modes, AI Scene Optimization, AI Sound |
 | 🧪 **Write behind `--experimental` / Labs** | none right now: the next control to become writable goes here until its hardware card passes |
-| 👁 **Read-only** | Local Dimming, the Manual color temperature slider (decoded, kelvin), RGB gains, aspect ratio, firmware level, usage hours, Dual-Mode state |
+| 👁 **Read-only** | The Manual color temperature slider (decoded, kelvin), RGB gains, aspect ratio, firmware level, usage hours, Dual-Mode state |
 | ⛔ **Blocked on purpose** | Input switching (it can cut the DDC link), and everything on the deny-list |
 
 <details>
@@ -136,7 +136,6 @@ Try it without the hardware: `npx tauri dev -- -- --demo=3` starts three simulat
 | Volume, Mute | `0x62`, `0x8D` | read ✔ · write ✔ (OSD-verified, fw 3.05, 2026-10-30) |
 | Picture mode (all 8 modes) | `0x15` | read ✔ · write ✔ (OSD-verified), through the AI interlock |
 | AI Scene Optimization, AI Sound | `0xA6` sub-commands 2, 6 | read ✔ · write ✔ (OSD-verified) |
-| Local Dimming | `0xAF` (not declared by the monitor) | read ✔ (all four options matched the OSD) · not writable yet |
 | Manual color temperature slider (`0x69`), RGB gains, aspect ratio | various | read ✔ · not writable yet (writes untested) |
 | Input | `0x60` | read ✔ · **blocked**: switching input can cut the DDC link (dead end) |
 | Firmware level, usage hours, Dual-Mode state | `0xC9`, `0xC0`, `0xB1` | read-only |

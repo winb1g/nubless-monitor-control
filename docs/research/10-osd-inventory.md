@@ -22,7 +22,7 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | | Contrast | slider | ✔ `0x12` | Test card |
 | | Sharpness | slider | ○ (standard `0x87` is **not** in the capabilities string) | Probe diff |
 | | Color Temp | Custom, Warm, Medium, Cool, Manual (0–100) | ◐ `0x69` reads 6500; `0x14` reads a non-standard value | Probe diff per option, and the Manual slider |
-| | Local Dimming | High, Middle, Low, Off | ◐ `0xAF` (undeclared): Off `0xFF00`, Low `0x0000`, Middle `0x0100`, High `0x0200`; the level is the high byte (fw 3.05, 2026-11-26) | First write test |
+| | Local Dimming | High, Middle, Low, Off | ○ | Probe diff |
 | | Picture Reset | no / yes | ⛔ | never |
 | **Sound** | Sound Out | H/P out, internal speaker | ○ | Probe diff |
 | | Bass Boost | on / off | ○ | Probe diff |
@@ -32,7 +32,7 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | | Auto Input Switch | on / off | ○ | Probe diff |
 | **General** | Hexagon Lighting | Static 1 (purple), Static 2 (red), Static 3 (cyan), Static 4 (white), Cycling, Off | ○ (possibly not on the DDC/CI channel at all) | Probe diff |
 
-Also declared by the monitor but not matched to any OSD setting: `0xF6` (values `00 01 02`), `0xFA` (`00 01`, read 2), `0xFD` (`00 01`), `0xFE` (`00 01 02`). They are the first candidates for Bass Boost, Auto Input Switch and similar; the probe diffs below settle it.
+Also declared by the monitor but not matched to any OSD setting: `0xF6` (values `00 01 02`), `0xFA` (`00 01`, read 2), `0xFD` (`00 01`), `0xFE` (`00 01 02`). They are the first candidates for Local Dimming, Bass Boost, Auto Input Switch and similar; the probe diffs below settle it.
 
 ## How to map one (read-only, safe)
 

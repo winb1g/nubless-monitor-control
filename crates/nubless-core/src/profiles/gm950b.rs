@@ -185,27 +185,6 @@ const MUTE: &[Choice] = &[
     },
 ];
 
-/// Local Dimming on 0xAF: the level is in the high byte, and Off is 0xFF.
-/// Read at each OSD option (fw 3.05, 2026-11-26).
-const LOCAL_DIMMING: &[Choice] = &[
-    Choice {
-        raw: 0xFF00,
-        label: "Off",
-    },
-    Choice {
-        raw: 0x0000,
-        label: "Low",
-    },
-    Choice {
-        raw: 0x0100,
-        label: "Middle",
-    },
-    Choice {
-        raw: 0x0200,
-        label: "High",
-    },
-];
-
 const ASPECT: &[Choice] = &[Choice {
     raw: 1,
     label: "Full Wide",
@@ -256,11 +235,6 @@ pub const CONTROLS: &[Control] = &[
         id: "color-preset", label: "Color temperature", vcp: 0x14, kind: ValueKind::Choice { choices: COLOR_PRESETS },
         confidence: WriteConfirmed, standard: false, writable: true, risk: Risk::None,
         note: "Preset selector. Warm 3, Medium 5, Cool 9, Custom 11 and Manual 65502 (0xFFDE) were each written from nubless and matched the OSD; Manual came up on the C1 notch (0x69 read 6800). Custom unlocks the RGB sliders. The Manual slider itself is the read-only 0x69 control, so Undo and Reset put the preset back but not where the Manual slider was; the monitor keeps its own Manual position. Tested in Personalized Picture only; picture modes that lock color will ignore it (fw 3.05, 2026-10-30).",
-    },
-    Control {
-        id: "local-dimming", label: "Local Dimming", vcp: 0xAF, kind: ValueKind::Choice { choices: LOCAL_DIMMING },
-        confidence: ReadConfirmed, standard: false, writable: false, risk: Risk::Visibility,
-        note: "Not declared in the capabilities string, but answers reads. Off 0xFF00, Low 0x0000, Middle 0x0100, High 0x0200: each read with `nubless probe diff` after setting it in the OSD, and 0xAF was the only code that changed, on Windows (fw 3.05, 2026-11-26). Read-only: writes are untested, and the write guard refuses undeclared codes.",
     },
     Control {
         id: "red-gain", label: "Red", vcp: 0x16, kind: range(0, 100),
@@ -498,7 +472,6 @@ mod evidence_tests {
         ("adaptive-sync", WriteConfirmed),
         ("picture-mode", WriteConfirmed),
         ("color-temperature", Candidate),
-        ("local-dimming", ReadConfirmed),
         ("red-gain", Candidate),
         ("green-gain", Candidate),
         ("blue-gain", Candidate),
