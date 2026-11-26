@@ -36,6 +36,8 @@ Also declared by the monitor but not matched to any OSD setting: `0xF6` (values 
 
 **`0xAF` counts OSD changes.** Its high byte goes up by one with every change made in the menu, whatever the setting (`FF`, `00`, `01`, … wrapping), and the low byte stays `00`. Stepping Local Dimming Off → Low → Middle → High → Off → Low → Off → Low read `FF`, `00`, `01`, `02`, `03`, (`04`), `04`, `05` (fw 3.05, 2026-11-26). LG Switch names the code `MONITOR_MODEL_NAME` ([`08`](08-lg-opcode-and-enum-tables.md)). `nubless probe diff` marks it as noise.
 
+**Local Dimming isn't in LG Switch either** (static analysis of LG Switch 7.60.0.0, 2026-11-26). No opcode, enum member, sub-command, webOS setting key or resource names it. The DDC layer (`LGProtocolEngine.dll`) only builds standard MCCS Get/Set VCP frames from host address `0x51` to `0x6E`, with no remap table, so LG Switch never uses the `0x50` service channel. Still open: LG's `0x50` service channel, read with `ddcutil getvcp SCAN --i2c-source-addr=x50` around one OSD change, and any newer LG app that lists the 27GM950B.
+
 ## How to map one (read-only, safe)
 
 `nubless probe` only reads. Change **one** OSD setting between the two commands, then diff:
