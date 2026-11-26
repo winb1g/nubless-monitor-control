@@ -22,7 +22,7 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | | Contrast | slider | ✔ `0x12` | Test card |
 | | Sharpness | slider | ○ (standard `0x87` is **not** in the capabilities string) | Probe diff |
 | | Color Temp | Custom, Warm, Medium, Cool, Manual (0–100) | ◐ `0x69` reads 6500; `0x14` reads a non-standard value | Probe diff per option, and the Manual slider |
-| | Local Dimming | High, Middle, Low, Off | ○ | Probe diff |
+| | Local Dimming | High, Middle, Low, Off | ○ not among the declared or known codes: stepping it only moved `0xAF`, which is a change counter (below) (fw 3.05, 2026-11-26) | `nubless probe save --all`, then diff |
 | | Picture Reset | no / yes | ⛔ | never |
 | **Sound** | Sound Out | H/P out, internal speaker | ○ | Probe diff |
 | | Bass Boost | on / off | ○ | Probe diff |
@@ -34,6 +34,8 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 
 Also declared by the monitor but not matched to any OSD setting: `0xF6` (values `00 01 02`), `0xFA` (`00 01`, read 2), `0xFD` (`00 01`), `0xFE` (`00 01 02`). They are the first candidates for Local Dimming, Bass Boost, Auto Input Switch and similar; the probe diffs below settle it.
 
+**`0xAF` counts OSD changes.** Its high byte goes up by one with every change made in the menu, whatever the setting (`FF`, `00`, `01`, … wrapping), and the low byte stays `00`. Stepping Local Dimming Off → Low → Middle → High → Off → Low → Off → Low read `FF`, `00`, `01`, `02`, `03`, (`04`), `04`, `05` (fw 3.05, 2026-11-26). LG Switch names the code `MONITOR_MODEL_NAME` ([`08`](08-lg-opcode-and-enum-tables.md)). `nubless probe diff` marks it as noise.
+
 ## How to map one (read-only, safe)
 
 `nubless probe` only reads. Change **one** OSD setting between the two commands, then diff:
@@ -43,5 +45,7 @@ nubless probe save before.json
 # change ONE setting in the OSD (for example Local Dimming: Off -> High)
 nubless probe diff before.json
 ```
+
+If a setting moves nothing but `0xAF`, it isn't in the codes `probe` reads by default: save with `nubless probe save --all before.json` (every code from `0x00` to `0xFF` except the factory and calibration ones; a minute or two) and diff against that.
 
 For a setting with several options, repeat per option and write down the code, the option name and the raw value. Put the result in the PR as a test card (see [`../mapping-guide.md`](../mapping-guide.md)). Nothing is written to the monitor, so this is the lowest-risk way to move a control from ○ to ◐.

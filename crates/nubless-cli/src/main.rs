@@ -85,7 +85,12 @@ enum Command {
 #[derive(Subcommand)]
 enum ProbeAction {
     /// Save every readable code to FILE.
-    Save { file: PathBuf },
+    Save {
+        file: PathBuf,
+        /// Read every code (0x00-0xFF), not just the declared and known ones.
+        #[arg(long)]
+        all: bool,
+    },
     /// Compare the monitor with FILE and print what changed.
     Diff { file: PathBuf },
     /// Print every change as it happens.
@@ -325,7 +330,7 @@ fn run(cli: Cli) -> AnyResult {
             Ok(())
         }
         Command::Probe { action } => match action {
-            ProbeAction::Save { file } => Ok(probe::save(&mut targets[0].ctl, &file)?),
+            ProbeAction::Save { file, all } => Ok(probe::save(&mut targets[0].ctl, &file, all)?),
             ProbeAction::Diff { file } => probe::diff(&mut targets[0].ctl, &file),
             ProbeAction::Watch { seconds, codes } => {
                 let only = codes
