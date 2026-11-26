@@ -18,6 +18,7 @@ Interoperability research on **LG Switch** (v7.60), to build an **open-source, l
 | [`06-method.md`](06-method.md) | How the findings were obtained (reproducible), and what we deliberately did not do |
 | [`09-ai-channel-and-picture-modes.md`](09-ai-channel-and-picture-modes.md) | LG's AI sub-command channel (VCP 0xA6), which picture modes allow AI, and picture-mode values on the wire |
 | [`10-osd-inventory.md`](10-osd-inventory.md) | Every OSD page and option on a real unit, and which are mapped |
+| [`11-local-dimming.md`](11-local-dimming.md) | Why Local Dimming can't be controlled from a computer: everything tried, the `0x50` incident, and what would reopen it |
 | [`07-roadmap.md`](07-roadmap.md) | Proposed architecture, phases, safety rules |
 | [`tools/`](tools/README.md) | Scripts to reproduce and to continue the mapping (read-only) |
 

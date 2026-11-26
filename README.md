@@ -125,6 +125,7 @@ Try it without the hardware: `npx tauri dev -- -- --demo=3` starts three simulat
 | 🧪 **Write behind `--experimental` / Labs** | none right now: the next control to become writable goes here until its hardware card passes |
 | 👁 **Read-only** | The Manual color temperature slider (decoded, kelvin), RGB gains, aspect ratio, firmware level, usage hours, Dual-Mode state |
 | ⛔ **Blocked on purpose** | Input switching (it can cut the DDC link), and everything on the deny-list |
+| 🚫 **Not possible** | Local Dimming: the monitor doesn't expose it to a computer ([why](docs/research/11-local-dimming.md)) |
 
 <details>
 <summary>Full control table, with VCP codes</summary>

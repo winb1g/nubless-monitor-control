@@ -22,7 +22,7 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | | Contrast | slider | ✔ `0x12` | Test card |
 | | Sharpness | slider | ○ (standard `0x87` is **not** in the capabilities string) | Probe diff |
 | | Color Temp | Custom, Warm, Medium, Cool, Manual (0–100) | ◐ `0x69` reads 6500; `0x14` reads a non-standard value | Probe diff per option, and the Manual slider |
-| | Local Dimming | High, Middle, Low, Off | ○ **not exposed over DDC/CI**: a full scan (`probe save --all`, 72 codes answer) moved only `0xAF`, the change counter (below), Off → High; LG Switch's tables have no Local Dimming opcode or `0xA6` sub-command either (fw 3.05, 2026-11-26) | Check whether each picture mode keeps its own level (then picture-mode switching covers it) |
+| | Local Dimming | High, Middle, Low, Off | ⛔ **not exposed to a computer**: no readable code tracks it, LG Switch has no control for it, and the `0x50` service channel is unsafe ([`11-local-dimming.md`](11-local-dimming.md), fw 3.05, 2026-11-26) | Menu only. Check whether each picture mode keeps its own level |
 | | Picture Reset | no / yes | ⛔ | never |
 | **Sound** | Sound Out | H/P out, internal speaker | ○ | Probe diff |
 | | Bass Boost | on / off | ○ | Probe diff |
@@ -32,7 +32,7 @@ Status key: ✔ mapped and used · ◐ read-only or partly mapped · ○ not map
 | | Auto Input Switch | on / off | ○ | Probe diff |
 | **General** | Hexagon Lighting | Static 1 (purple), Static 2 (red), Static 3 (cyan), Static 4 (white), Cycling, Off | ○ (possibly not on the DDC/CI channel at all) | Probe diff |
 
-Also declared by the monitor but not matched to any OSD setting: `0xF6` (values `00 01 02`), `0xFA` (`00 01`, read 2), `0xFD` (`00 01`), `0xFE` (`00 01 02`). They are the first candidates for Local Dimming, Bass Boost, Auto Input Switch and similar; the probe diffs below settle it.
+Also declared by the monitor but not matched to any OSD setting: `0xF6` (values `00 01 02`), `0xFA` (`00 01`, read 2), `0xFD` (`00 01`), `0xFE` (`00 01 02`). They are the first candidates for Bass Boost, Auto Input Switch and similar (not Local Dimming: see [`11`](11-local-dimming.md)); the probe diffs below settle it.
 
 **`0xAF` counts OSD changes.** Its high byte goes up by one with every change made in the menu, whatever the setting (`FF`, `00`, `01`, … wrapping), and the low byte stays `00`. Stepping Local Dimming Off → Low → Middle → High → Off → Low → Off → Low read `FF`, `00`, `01`, `02`, `03`, (`04`), `04`, `05` (fw 3.05, 2026-11-26). LG Switch names the code `MONITOR_MODEL_NAME` ([`08`](08-lg-opcode-and-enum-tables.md)). `nubless probe diff` marks it as noise.
 
