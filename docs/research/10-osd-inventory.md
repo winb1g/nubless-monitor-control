@@ -39,7 +39,7 @@ Also declared by the monitor but not matched to any OSD setting: `0xF6` (values 
 **Local Dimming isn't in LG Switch either** (static analysis of LG Switch 7.60.0.0, 2026-11-26). No opcode, enum member, sub-command, webOS setting key or resource names it. The DDC layer (`LGProtocolEngine.dll`) only builds standard MCCS Get/Set VCP frames from host address `0x51` to `0x6E`, with no remap table, so LG Switch never uses the `0x50` service channel. Still open: only a newer LG app that lists the 27GM950B.
 
 > [!CAUTION]
-> **Don't probe LG's `0x50` service channel.** A scan that sent standard Get VCP requests from host address `0x50` (2026-11-26, Linux over HDMI, fw 3.05) got normal-looking replies at first, then fragments of internal data (the model name `27GM950B` in ASCII) from about code `0xCE` on, then only `0xFF`. The screen dimmed and the monitor stopped responding until it was restarted. On that channel a "read" is not a read. The script is gone; see [`SAFETY.md`](../../SAFETY.md).
+> **Don't probe LG's `0x50` service channel.** A scan that sent standard Get VCP requests from host address `0x50` (2026-11-26, Linux over HDMI, fw 3.05) never got a single VCP reply (`6E 88 02 …`). From the first code it returned a repeating stream that looks like internal memory (with the model name `27GM950B` in ASCII), from `0xCE` a short `BE <code> …` acknowledgement, from `0xF8` only `0xFF`. The screen dimmed and the monitor stopped responding until it was restarted. On that channel a "read" is not a read. The script is gone; see [`SAFETY.md`](../../SAFETY.md).
 
 ## How to map one (read-only, safe)
 
